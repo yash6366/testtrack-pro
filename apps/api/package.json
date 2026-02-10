@@ -1,0 +1,40 @@
+{
+  "name": "api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "build": "echo 'No build needed for Node.js'",
+    "start": "node src/server.js",
+    "lint": "eslint .",
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.4.0",
+    "@fastify/helmet": "^11.1.1",
+    "@fastify/jwt": "^6.3.0",
+    "@fastify/websocket": "^8.3.1",
+    "@prisma/client": "^5.7.0",
+    "@shared/types": "workspace:*",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "@upstash/redis": "^1.36.2",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.0",
+    "exceljs": "^4.4.0",
+    "fastify": "^4.25.0",
+    "jsonwebtoken": "^9.0.3",
+    "jspdf": "^2.5.2",
+    "node-cron": "^3.0.2",
+    "readable-stream": "^4.7.0",
+    "resend": "^3.0.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.54.0",
+    "nodemon": "^3.0.2",
+    "prisma": "^5.7.0"
+  }
+}

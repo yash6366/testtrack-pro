@@ -1,0 +1,20 @@
+{
+  "name": "testtrack-pro",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Full-stack monorepo with React, Fastify, and Prisma",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^1.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
