@@ -9,6 +9,15 @@ export default function TesterDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  const handleCreateTestRun = () => {
+    const projectId = localStorage.getItem('selectedProjectId');
+    if (!projectId) {
+      navigate('/dashboard');
+      return;
+    }
+    navigate(`/projects/${projectId}/test-runs/create`);
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -32,39 +41,47 @@ export default function TesterDashboard() {
       setDataError('');
 
       try {
-        const [summary, recent] = await Promise.all([
-          apiClient.get('/api/tests/summary'),
-          apiClient.get('/api/tests/recent'),
-        ]);
+        const overview = await apiClient.get('/api/tester/overview');
 
         if (!isActive) {
           return;
         }
 
+        const metrics = overview?.metrics || {};
+
         setTestMetrics([
           {
             label: 'Total Tests',
-            value: String(summary.total ?? 0),
+            value: String(metrics.totalExecutions ?? 0),
             color: 'bg-blue-500/10 text-blue-600 dark:text-blue-300',
           },
           {
             label: 'Passed',
-            value: String(summary.passed ?? 0),
+            value: String(metrics.passedExecutions ?? 0),
             color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
           },
           {
             label: 'Failed',
-            value: String(summary.failed ?? 0),
+            value: String(metrics.failedExecutions ?? 0),
             color: 'bg-rose-500/10 text-rose-600 dark:text-rose-300',
           },
           {
             label: 'Pass Rate',
-            value: `${(summary.passRate ?? 0).toFixed(1)}%`,
+            value: `${Number(metrics.passRate ?? 0).toFixed(1)}%`,
             color: 'bg-purple-500/10 text-purple-600 dark:text-purple-300',
           },
         ]);
 
-        setRecentTests(recent.tests || []);
+        const recentExecutions = overview?.recentExecutions || [];
+        const normalizedRecent = recentExecutions.map((execution) => ({
+          id: execution.id,
+          name: execution.testCase?.name || execution.testRun?.name || 'Test Execution',
+          status: execution.status || 'Unknown',
+          passRate: null,
+          executedAt: execution.completedAt || execution.startedAt || null,
+        }));
+
+        setRecentTests(normalizedRecent);
       } catch (error) {
         if (!isActive) {
           return;
@@ -184,7 +201,7 @@ export default function TesterDashboard() {
           <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
           <div className="space-y-3">
             <button 
-              onClick={() => navigate('/projects/default/test-runs/create')}
+              onClick={handleCreateTestRun}
               className="tt-btn tt-btn-primary w-full py-2 text-sm"
             >
               Execute New Test

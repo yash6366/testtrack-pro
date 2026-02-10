@@ -19,6 +19,17 @@ export default function ReportsPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('execution'); // 'execution' or 'performance'
 
+  const resolveProjectId = () => selectedProject?.id || localStorage.getItem('selectedProjectId');
+
+  const handleCreateTestRun = () => {
+    const projectId = resolveProjectId();
+    if (!projectId) {
+      setError('No project selected. Please select a project and try again.');
+      return;
+    }
+    navigate(`/projects/${projectId}/test-runs/create`);
+  };
+
   useEffect(() => {
     loadProjects();
     loadPerformanceReport();
@@ -35,37 +46,39 @@ export default function ReportsPage() {
       setLoading(true);
       setError('');
 
-      // Try to get projects for the user
-      try {
-        const response = await apiClient.get('/api/projects');
-        if (response.projects && response.projects.length > 0) {
-          setProjects(response.projects);
-          
-          // Check if a project was previously selected
-          const savedProjectId = localStorage.getItem('selectedProjectId');
-          if (savedProjectId) {
-            const saved = response.projects.find(p => p.id === Number(savedProjectId));
-            if (saved) {
-              setSelectedProject(saved);
-              return;
+      const savedProjectId = localStorage.getItem('selectedProjectId');
+
+      if (user?.role === 'ADMIN') {
+        try {
+          const response = await apiClient.get('/api/admin/projects');
+          if (response.projects && response.projects.length > 0) {
+            setProjects(response.projects);
+
+            if (savedProjectId) {
+              const saved = response.projects.find(p => p.id === Number(savedProjectId));
+              if (saved) {
+                setSelectedProject(saved);
+                return;
+              }
             }
+
+            setSelectedProject(response.projects[0]);
+            return;
           }
-          
-          // Default to first project
-          setSelectedProject(response.projects[0]);
-        } else {
+
           setError('No projects available. Please create a project first.');
           setLoading(false);
+          return;
+        } catch (projectErr) {
+          // Fall through to localStorage fallback
         }
-      } catch (projectErr) {
-        // Fallback: try to load from localStorage
-        const projectId = localStorage.getItem('selectedProjectId');
-        if (projectId) {
-          setSelectedProject({ id: Number(projectId) });
-        } else {
-          setError('No project selected. Please select a project from the dashboard.');
-          setLoading(false);
-        }
+      }
+
+      if (savedProjectId) {
+        setSelectedProject({ id: Number(savedProjectId) });
+      } else {
+        setError('No project selected. Please select a project from the dashboard.');
+        setLoading(false);
       }
     } finally {
       if (loading) setLoading(false);
@@ -263,7 +276,7 @@ export default function ReportsPage() {
           )}
           {error.includes('No test runs') && (
             <p className="text-sm mt-2">
-              Execute a test to generate reports. Go to <button onClick={() => navigate('/projects/default/test-runs/create')} className="underline font-medium hover:text-blue-600">Create Test Run</button>.
+              Execute a test to generate reports. Go to <button onClick={handleCreateTestRun} className="underline font-medium hover:text-blue-600">Create Test Run</button>.
             </p>
           )}
         </div>
@@ -304,7 +317,7 @@ export default function ReportsPage() {
                   <div className="text-4xl mb-2">🧪</div>
                   <p className="text-gray-500 mb-4">No test runs yet</p>
                   <button 
-                    onClick={() => navigate('/projects/default/test-runs/create')}
+                    onClick={handleCreateTestRun}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     Create Test Run

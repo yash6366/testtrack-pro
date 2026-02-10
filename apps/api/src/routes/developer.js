@@ -12,11 +12,14 @@ import {
   getTestCaseDetails,
   requestBugRetest,
   getDeveloperOverview,
+  generateDeveloperReport,
+  getDeveloperBugAnalytics,
 } from '../services/developerService.js';
 import {
   changeBugStatus,
   addBugComment,
 } from '../services/bugService.js';
+import { generateDeveloperPerformanceCSV } from '../services/exportService.js';
 
 export async function developerRoutes(fastify) {
   const { requireAuth, requireRoles } = createAuthGuards(fastify);
@@ -338,6 +341,54 @@ export async function developerRoutes(fastify) {
   // ============================================
 
   /**
+   * Get detailed developer report (analytics and metrics)
+   */
+  fastify.get(
+    '/api/developer/reports/performance',
+    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { startDate, endDate } = request.query;
+
+        const report = await generateDeveloperReport(userId, {
+          startDate,
+          endDate,
+        });
+
+        reply.send(report);
+      } catch (error) {
+        console.error('Error generating developer report:', error);
+        reply.code(400).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Get bug analytics for developer
+   */
+  fastify.get(
+    '/api/developer/reports/bug-analytics',
+    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { startDate, endDate } = request.query;
+
+        const analytics = await getDeveloperBugAnalytics(userId, {
+          startDate,
+          endDate,
+        });
+
+        reply.send(analytics);
+      } catch (error) {
+        console.error('Error generating bug analytics:', error);
+        reply.code(400).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
    * Export assigned bugs report
    */
   fastify.get(
@@ -369,6 +420,111 @@ export async function developerRoutes(fastify) {
       }
     }
   );
+
+  /**
+   * Export developer performance report to CSV
+   */
+  fastify.get(
+    '/api/developer/reports/performance/export',
+    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { weeks = 8 } = request.query;
+
+        const csvContent = await generateDeveloperPerformanceCSV(
+          userId,
+          Number(weeks)
+        );
+
+        reply
+          .header('Content-Type', 'text/csv')
+          .header(
+            'Content-Disposition',
+            `attachment; filename="developer-performance-${weeks}w.csv"`
+          )
+          .send(csvContent);
+      } catch (error) {
+        console.error('Error exporting performance report:', error);
+        reply.code(400).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Export bug analytics report to CSV
+   */
+  fastify.get(
+    '/api/developer/reports/bug-analytics/export',
+    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { startDate, endDate } = request.query;
+
+        const analytics = await getDeveloperBugAnalytics(userId, {
+          startDate,
+          endDate,
+        });
+
+        // Generate CSV from analytics
+        const csvContent = generateBugAnalyticsCSV(analytics);
+
+        const filename = `bug-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+
+        reply
+          .header('Content-Type', 'text/csv')
+          .header('Content-Disposition', `attachment; filename="${filename}"`)
+          .send(csvContent);
+      } catch (error) {
+        console.error('Error exporting bug analytics:', error);
+        reply.code(400).send({ error: error.message });
+      }
+    }
+  );
+}
+
+/**
+ * Generate CSV for bug analytics
+ */
+function generateBugAnalyticsCSV(analytics) {
+  const lines = [
+    'DEVELOPER BUG ANALYTICS REPORT',
+    `Generated,${new Date().toISOString()}`,
+    '',
+    'SUMMARY',
+    `Total Bugs,${analytics.totalBugs}`,
+    '',
+    'WEEKLY TRENDS',
+    'Week,Assigned,Resolved',
+    ...analytics.weeklyTrends.map((w) => `${w.week},${w.assigned},${w.resolved}`),
+    '',
+    'RESOLUTION TIME DISTRIBUTION',
+    'Timeframe,Count',
+    ...Object.entries(analytics.resolutionTimeAnalysis.buckets).map(
+      ([bucket, count]) => `${bucket},${count}`
+    ),
+    '',
+    'SLOWEST RESOLUTIONS',
+    'Bug Number,Hours',
+    ...analytics.resolutionTimeAnalysis.slowest.map(
+      (r) => `${r.bugNumber},${r.hours.toFixed(2)}`
+    ),
+    '',
+    'FASTEST RESOLUTIONS',
+    'Bug Number,Hours',
+    ...analytics.resolutionTimeAnalysis.fastest.map(
+      (r) => `${r.bugNumber},${r.hours.toFixed(2)}`
+    ),
+    '',
+    'ENVIRONMENT BREAKDOWN',
+    'Environment,Count',
+    ...Object.entries(analytics.environmentBreakdown).map(
+      ([env, count]) => `${env},${count}`
+    ),
+  ];
+
+  return lines.join('\n');
 }
 
 /**

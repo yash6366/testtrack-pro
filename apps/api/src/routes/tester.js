@@ -33,6 +33,9 @@ import {
   getTemplateById,
   createTestCaseFromTemplate,
 } from '../services/testCaseTemplateService.js';
+import {
+  getProjectBugs,
+} from '../services/bugService.js';
 
 const prisma = getPrismaClient();
 
@@ -791,43 +794,29 @@ export async function testerRoutes(fastify) {
   );
 
   /**
-   * Get bugs reported by tester (placeholder - requires Bug model)
+   * Get bugs reported by tester
    */
   fastify.get(
     '/api/tester/bugs/reported',
     { preHandler: [requireAuth, requireRoles(['TESTER'])] },
-    async (request) => {
-      const userId = request.user.id;
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { projectId, status, priority, skip, take } = request.query;
 
-      // TODO: Implement when Bug/Defect model is added
-      // For now, return executions with defect links
-      const executionsWithDefects = await prisma.testExecution.findMany({
-        where: {
-          executedBy: userId,
-          defectId: { not: null },
-        },
-        include: {
-          testCase: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          testRun: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
+        const result = await getProjectBugs(projectId ? Number(projectId) : null, {
+          reporterId: userId,
+          status,
+          priority,
+          skip: skip ? Number(skip) : 0,
+          take: take ? Number(take) : 50,
+        });
 
-      return {
-        message: 'Full bug management system pending implementation',
-        executionsWithDefects,
-      };
+        reply.send(result);
+      } catch (error) {
+        fastify.log.error(error);
+        reply.code(500).send({ error: error.message });
+      }
     }
   );
 

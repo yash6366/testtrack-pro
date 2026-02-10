@@ -556,6 +556,271 @@ export async function getDeveloperOverview(userId) {
   };
 }
 
+/**
+ * Generate developer detailed report
+ * @param {number} userId - Developer ID
+ * @param {Object} options - Report options
+ * @returns {Promise<Object>} Detailed report data
+ */
+export async function generateDeveloperReport(userId, options = {}) {
+  const { startDate, endDate, includeHistory = false } = options;
+
+  const dateFilter = {};
+  if (startDate) dateFilter.gte = new Date(startDate);
+  if (endDate) dateFilter.lte = new Date(endDate);
+
+  const where = {
+    assigneeId: userId,
+    ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+  };
+
+  // Get developer info
+  const developer = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      createdAt: true,
+    },
+  });
+
+  // Get comprehensive metrics
+  const metrics = await getDeveloperMetrics(userId, { startDate, endDate });
+
+  // Get bugs grouped by status
+  const bugsByStatus = await prisma.defect.groupBy({
+    by: ['status'],
+    where,
+    _count: { id: true },
+  });
+
+  // Get bugs grouped by priority
+  const bugsByPriority = await prisma.defect.groupBy({
+    by: ['priority'],
+    where,
+    _count: { id: true },
+  });
+
+  // Get bugs grouped by severity
+  const bugsBySeverity = await prisma.defect.groupBy({
+    by: ['severity'],
+    where,
+    _count: { id: true },
+  });
+
+  // Get top bugs (high priority/severity)
+  const criticalBugs = await prisma.defect.findMany({
+    where: {
+      ...where,
+      OR: [
+        { priority: 'CRITICAL' },
+        { severity: 'CRITICAL' },
+      ],
+    },
+    select: {
+      id: true,
+      bugNumber: true,
+      title: true,
+      status: true,
+      priority: true,
+      severity: true,
+      createdAt: true,
+      closedAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Get recently closed bugs
+  const recentlyResolved = await prisma.defect.findMany({
+    where: {
+      ...where,
+      status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
+      closedAt: { not: null },
+    },
+    select: {
+      id: true,
+      bugNumber: true,
+      title: true,
+      status: true,
+      priority: true,
+      createdAt: true,
+      closedAt: true,
+      actualFixHours: true,
+    },
+    orderBy: { closedAt: 'desc' },
+    take: 10,
+  });
+
+  // Get fix documentation stats
+  const docsStats = await prisma.defect.findMany({
+    where,
+    select: {
+      id: true,
+      fixStrategy: true,
+      rootCauseAnalysis: true,
+      rootCauseCategory: true,
+      fixedInCommitHash: true,
+      actualFixHours: true,
+    },
+  });
+
+  const documentationRate = docsStats.length > 0
+    ? ((docsStats.filter((b) => b.fixStrategy || b.rootCauseAnalysis).length / docsStats.length) * 100).toFixed(2)
+    : 0;
+
+  const avgFixHours = docsStats
+    .filter((b) => b.actualFixHours)
+    .reduce((sum, b) => sum + b.actualFixHours, 0) / docsStats.filter((b) => b.actualFixHours).length || 0;
+
+  // Root cause categories breakdown
+  const rootCauseBreakdown = docsStats.reduce((acc, bug) => {
+    if (bug.rootCauseCategory) {
+      acc[bug.rootCauseCategory] = (acc[bug.rootCauseCategory] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const report = {
+    developer,
+    period: {
+      startDate: startDate || 'All time',
+      endDate: endDate || new Date().toISOString(),
+    },
+    metrics,
+    distribution: {
+      byStatus: bugsByStatus.reduce((acc, item) => {
+        acc[item.status] = item._count.id;
+        return acc;
+      }, {}),
+      byPriority: bugsByPriority.reduce((acc, item) => {
+        acc[item.priority] = item._count.id;
+        return acc;
+      }, {}),
+      bySeverity: bugsBySeverity.reduce((acc, item) => {
+        acc[item.severity] = item._count.id;
+        return acc;
+      }, {}),
+    },
+    fixQuality: {
+      documentationRate: Number(documentationRate),
+      avgFixHours: Number(avgFixHours.toFixed(2)),
+      rootCauseBreakdown,
+    },
+    highlights: {
+      criticalBugs,
+      recentlyResolved,
+    },
+    generatedAt: new Date().toISOString(),
+  };
+
+  return report;
+}
+
+/**
+ * Generate bug analytics for developer
+ * @param {number} userId - Developer ID
+ * @param {Object} filters - Filter options
+ * @returns {Promise<Object>} Bug analytics
+ */
+export async function getDeveloperBugAnalytics(userId, filters = {}) {
+  const { startDate, endDate } = filters;
+
+  const dateFilter = {};
+  if (startDate) dateFilter.gte = new Date(startDate);
+  if (endDate) dateFilter.lte = new Date(endDate);
+
+  const where = {
+    assigneeId: userId,
+    ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+  };
+
+  // Get all bugs for analysis
+  const bugs = await prisma.defect.findMany({
+    where,
+    select: {
+      id: true,
+      bugNumber: true,
+      title: true,
+      status: true,
+      priority: true,
+      severity: true,
+      createdAt: true,
+      closedAt: true,
+      statusChangedAt: true,
+      actualFixHours: true,
+      rootCauseCategory: true,
+      environment: true,
+    },
+  });
+
+  // Time-based analysis (weekly trends)
+  const weeklyTrends = [];
+  const weeks = 8;
+  for (let i = weeks - 1; i >= 0; i--) {
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - (i * 7));
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const weekBugs = bugs.filter(
+      (b) => b.createdAt >= weekStart && b.createdAt < weekEnd
+    );
+    const weekResolved = bugs.filter(
+      (b) => b.closedAt && b.closedAt >= weekStart && b.closedAt < weekEnd
+    );
+
+    weeklyTrends.push({
+      week: weekStart.toISOString().split('T')[0],
+      assigned: weekBugs.length,
+      resolved: weekResolved.length,
+    });
+  }
+
+  // Resolution time distribution
+  const resolutionTimes = bugs
+    .filter((b) => b.closedAt)
+    .map((b) => ({
+      bugNumber: b.bugNumber,
+      hours: (b.closedAt - b.createdAt) / (1000 * 60 * 60),
+    }))
+    .sort((a, b) => b.hours - a.hours);
+
+  const resolutionBuckets = {
+    '<24h': 0,
+    '24-48h': 0,
+    '2-7d': 0,
+    '1-2w': 0,
+    '>2w': 0,
+  };
+
+  resolutionTimes.forEach(({ hours }) => {
+    if (hours < 24) resolutionBuckets['<24h']++;
+    else if (hours < 48) resolutionBuckets['24-48h']++;
+    else if (hours < 168) resolutionBuckets['2-7d']++;
+    else if (hours < 336) resolutionBuckets['1-2w']++;
+    else resolutionBuckets['>2w']++;
+  });
+
+  // Environment analysis
+  const environmentBreakdown = bugs.reduce((acc, bug) => {
+    const env = bug.environment || 'Not specified';
+    acc[env] = (acc[env] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    totalBugs: bugs.length,
+    weeklyTrends,
+    resolutionTimeAnalysis: {
+      buckets: resolutionBuckets,
+      slowest: resolutionTimes.slice(0, 5),
+      fastest: resolutionTimes.slice(-5).reverse(),
+    },
+    environmentBreakdown,
+  };
+}
+
 export default {
   getDeveloperAssignedBugs,
   updateFixDocumentation,
@@ -564,4 +829,6 @@ export default {
   getTestCaseDetails,
   requestBugRetest,
   getDeveloperOverview,
+  generateDeveloperReport,
+  getDeveloperBugAnalytics,
 };

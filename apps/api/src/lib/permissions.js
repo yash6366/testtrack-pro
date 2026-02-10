@@ -244,6 +244,26 @@ export const PERMISSIONS = {
 
   // ============================================
   // BUG/DEFECT MANAGEMENT
+  // 
+  // DEVELOPER ROLE - BUG/ISSUE HANDLING
+  // ====================================
+  // Developers have full responsibility for managing assigned bugs:
+  //
+  // A Developer can manage bugs and issues assigned to them:
+  //   ✓ View bugs/issues assigned to them
+  //   ✓ View issue details including:
+  //     - Title, description, severity, priority, status
+  //     - Steps to reproduce
+  //     - Expected and actual behavior
+  //     - Environment and affected version
+  //   ✓ Update bug status according to workflow:
+  //     - Move bugs to "In Progress"
+  //     - Mark bugs as "Fixed"
+  //     - Mark bugs as "Won't Fix"
+  //   ✓ Request re-testing after marking bug as "Fixed"
+  //   ✓ Add comments and notes to bugs
+  //   ✓ Update fix documentation (commit, branch, fix notes)
+  //   ✓ View bug history and audit trail
   // ============================================
   'bug:create': {
     description: 'Create bugs from test failures',
@@ -262,10 +282,10 @@ export const PERMISSIONS = {
     },
   },
   'bug:status:change': {
-    description: 'Change bug status (FORBIDDEN FOR TESTER to mark as FIXED)',
+    description: 'Change bug status (DEVELOPER: In Progress, Fixed, Won\'t Fix | TESTER: CANNOT mark as FIXED)',
     roles: {
       [ROLES.ADMIN]: false, // CRITICAL: Admin changes status as admin action only
-      [ROLES.DEVELOPER]: true,
+      [ROLES.DEVELOPER]: true, // Developers manage workflow: In Progress → Fixed → Won't Fix
       [ROLES.TESTER]: false, // CRITICAL: Tester cannot mark bug as FIXED
     },
   },
@@ -539,8 +559,82 @@ export function getPermissionsForRole(role) {
  */
 export const ROLE_DESCRIPTIONS = {
   [ROLES.ADMIN]: 'System Administrator - Full control with audit trail',
-  [ROLES.DEVELOPER]: 'Developer - Can create test cases and analyze bugs',
+  [ROLES.DEVELOPER]: 'Developer - Manages bugs and issues, documents fixes, analyzes test failures',
   [ROLES.TESTER]: 'Tester - Can execute tests and report results',
+};
+
+/**
+ * DEVELOPER ROLE - RESPONSIBILITIES
+ * 
+ * 1. BUG / ISSUE HANDLING
+ * ========================
+ * A Developer can manage bugs and issues assigned to them:
+ * 
+ * ✓ View bugs/issues assigned to them
+ * ✓ View issue details including:
+ *   - Title, description, severity, priority, status
+ *   - Steps to reproduce
+ *   - Expected and actual behavior
+ *   - Environment and affected version
+ * 
+ * ✓ Update bug status according to the defined workflow, including:
+ *   - Move bugs to "In Progress"
+ *   - Mark bugs as "Fixed"
+ *   - Mark bugs as "Won't Fix"
+ *   - Request re-testing after marking a bug as "Fixed"
+ * 
+ * ✓ Add comments and notes to bugs
+ * ✓ View detailed bug history and audit trail
+ * ✓ Update fix documentation with:
+ *   - Commit references
+ *   - Branch information
+ *   - Fix notes and technical details
+ * 
+ * 2. TEST CASE & EXECUTION ANALYSIS
+ * ==================================
+ * ✓ View test cases and test execution details
+ * ✓ Analyze test failures and create/update bugs
+ * ✓ View performance metrics for assigned bugs
+ * ✓ Export bug reports and analytics
+ * 
+ * 3. COLLABORATION & COMMUNICATION
+ * ==================================
+ * ✓ Participate in team chat and discussions
+ * ✓ Receive and respond to notifications
+ * ✓ Comment on test results and bugs
+ * ✓ View team project information
+ * 
+ * 4. RESTRICTED ACTIONS
+ * =====================
+ * ✗ Cannot execute test cases (Testers only)
+ * ✗ Cannot verify bug fixes (Testers only)
+ * ✗ Cannot reopen bugs after verification failure (Testers only)
+ * ✗ Cannot create users or manage system settings (Admins only)
+ * ✗ Cannot modify test results (Testers only)
+ * ✗ Cannot trigger database backups or system operations (Admins only)
+ */
+export const DEVELOPER_RESPONSIBILITIES = {
+  'Bug/Issue Management': [
+    'View assigned bugs and issues',
+    'View issue details (title, description, severity, priority, status, steps to reproduce, expected/actual behavior, environment info)',
+    'Update bug status (In Progress, Fixed, Won\'t Fix)',
+    'Request re-testing after marking bug as Fixed',
+    'Add comments and notes to bugs',
+    'View bug history and audit trail',
+    'Update fix documentation (commit, branch, fix notes)',
+  ],
+  'Test Analysis': [
+    'View test cases and test execution details',
+    'Analyze test failures',
+    'Create or update bugs from test failures',
+    'View performance metrics',
+    'Export bug reports',
+  ],
+  'Collaboration': [
+    'Participate in team chat',
+    'Receive and respond to notifications',
+    'View team project information',
+  ],
 };
 
 export default {
@@ -550,4 +644,5 @@ export default {
   isForbidden,
   getPermissionsForRole,
   ROLE_DESCRIPTIONS,
+  DEVELOPER_RESPONSIBILITIES,
 };

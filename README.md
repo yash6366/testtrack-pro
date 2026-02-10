@@ -66,8 +66,15 @@ pnpm install
 ```
 
 2. Set up environment variables:
-   - API: `apps/api/.env` (already configured with SQLite)
-   - Web: `apps/web/.env` (optional, uses defaults)
+   ```bash
+   # Copy example files and configure
+   cp apps/api/.env.example apps/api/.env
+   cp apps/web/.env.example apps/web/.env
+   ```
+   
+   Then edit the `.env` files with your actual credentials:
+   - **API** (`apps/api/.env`): Configure PostgreSQL, JWT secret, Resend, Cloudinary
+   - **Web** (`apps/web/.env`): Set backend API URL (defaults to localhost:3001)
 
 3. Initialize the database:
 ```bash
@@ -79,7 +86,7 @@ For NeonDB setup instructions, see [NEONDB_SETUP.md](./NEONDB_SETUP.md)
 
 ### Running Locally
 
-Start all applications in development mode:
+**Option 1: Start all applications (Recommended)**
 ```bash
 pnpm dev
 ```
@@ -87,6 +94,24 @@ pnpm dev
 This will start:
 - **Frontend**: http://localhost:5173 (React + Vite)
 - **Backend**: http://localhost:3001 (Fastify API)
+
+**Option 2: Start applications individually**
+
+You need to run **both** the frontend and backend in separate terminals:
+
+1. **Terminal 1 - Start Backend:**
+   ```bash
+   cd apps/api
+   pnpm dev
+   ```
+
+2. **Terminal 2 - Start Frontend:**
+   ```bash
+   cd apps/web
+   pnpm dev
+   ```
+
+> ⚠️ **Important**: The frontend requires the backend to be running on port 3001. If you only start the frontend, you'll see proxy errors (`ECONNREFUSED`).
 
 ### Individual App Commands
 
@@ -285,6 +310,20 @@ MIT
 - Delete `pnpm-lock.yaml` and try again
 - Ensure pnpm is updated: `pnpm add -g pnpm@latest`
 
+**Proxy errors (ECONNREFUSED) when accessing /api routes**
+```
+[vite] http proxy error: /api/...
+AggregateError [ECONNREFUSED]
+```
+- **Cause**: Backend server is not running
+- **Solution**: Start the backend in a separate terminal:
+  ```bash
+  cd apps/api
+  pnpm dev
+  ```
+- The frontend (Vite) proxies `/api` requests to `http://localhost:3001`
+- Both frontend and backend must be running simultaneously
+
 **Port already in use**
 - Frontend: Change port in `apps/web/vite.config.js`
 - Backend: Change port in `apps/api/src/server.js`
@@ -293,9 +332,30 @@ MIT
 - Reset: `cd apps/api && npx prisma migrate reset`
 - For NeonDB issues, see [NEONDB_SETUP.md](./NEONDB_SETUP.md)
 
+**ESLint errors after updating**
+- ESLint 9+ uses flat config format (eslint.config.js)
+- Old .eslintrc files are no longer supported
+- Run: `pnpm install` to update all dependencies
+- See: [ESLint Migration Guide](https://eslint.org/docs/latest/use/configure/migration-guide)
 
-## Deploy on Vercel
+## 🔄 Updating Dependencies
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This project uses modern package versions. To update:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Update all dependencies
+pnpm update -r
+
+# Update specific workspace
+pnpm --filter api update
+pnpm --filter web update
+
+# Check for outdated packages
+pnpm outdated -r
+```
+
+**Recent Updates:**
+- ✅ ESLint 8 → ESLint 9 (flat config)
+- ✅ Deprecated packages removed
+- ✅ Security vulnerabilities addressed
+

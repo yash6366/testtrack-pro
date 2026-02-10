@@ -58,19 +58,19 @@ const start = async () => {
   try {
     await ensureAllUsersInUniversalChannel();
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
-    console.log('✓ Server running on http://localhost:3001');
+    fastify.log.info('Server running on http://localhost:3001');
 
     // Setup Socket.IO after server is listening
     const io = setupSocket(fastify);
-    console.log('✓ Socket.IO initialized');
+    fastify.log.info('Socket.IO initialized');
     
     // Initialize notification emitter
     initializeNotificationEmitter(io);
-    console.log('✓ Notification emitter initialized');
+    fastify.log.info('Notification emitter initialized');
 
     // Initialize cron jobs for background processing
     initializeCronJobs();
-    console.log('✓ Cron jobs initialized');
+    fastify.log.info('Cron jobs initialized');
     
     // Store io on fastify for access in routes
     fastify.io = io;

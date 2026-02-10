@@ -9,8 +9,13 @@ import { apiClient } from '@/lib/apiClient';
  */
 export default function TestRunCreation() {
   const navigate = useNavigate();
-  const { projectId } = useParams();
+  const { projectId: routeProjectId } = useParams();
   const { user } = useAuth();
+
+  const storedProjectId = localStorage.getItem('selectedProjectId');
+  const projectId = routeProjectId && routeProjectId !== 'default'
+    ? routeProjectId
+    : storedProjectId;
 
   const [testCases, setTestCases] = useState([]);
   const [selectedCases, setSelectedCases] = useState([]);
@@ -31,6 +36,11 @@ export default function TestRunCreation() {
       try {
         setLoading(true);
         setError('');
+
+        if (!projectId) {
+          setError('No project selected. Please select a project and try again.');
+          return;
+        }
 
         // Fetch test cases for project
         // This endpoint should be created in your test routes
@@ -95,6 +105,11 @@ export default function TestRunCreation() {
     try {
       setSubmitting(true);
       setError('');
+
+      if (!projectId) {
+        setError('No project selected. Please select a project and try again.');
+        return;
+      }
 
       const response = await apiClient.post(
         `/api/projects/${projectId}/test-runs`,

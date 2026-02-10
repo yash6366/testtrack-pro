@@ -4,11 +4,17 @@ import { getPrismaClient } from "./prisma.js";
 import { verifyTokenAndLoadUser } from "./rbac.js";
 
 let redisClient = null;
+let logger = console; // Default logger, will be overridden
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_NOTIFICATION_LENGTH = 500;
 const ALLOWED_PUBLIC_PREFIXES = ['bug-', 'execution-'];
 
-// Initialize Redis client for pub/sub
+/**
+ * Initialize Redis client for caching and pub/sub
+ * Note: Upstash REST API does not support Socket.IO Redis adapter (requires Redis protocol for pub/sub)
+ * For horizontal scaling, use standard Redis with @socket.io/redis-adapter
+ * @returns {boolean} Success status
+ */
 export function initializeRedis() {
   try {
     if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
@@ -16,14 +22,14 @@ export function initializeRedis() {
         url: process.env.UPSTASH_REDIS_REST_URL,
         token: process.env.UPSTASH_REDIS_REST_TOKEN,
       });
-      console.log("✓ Redis client initialized");
+      logger.info('Redis client initialized (Upstash REST)');
       return true;
     } else {
-      console.log("⚠ Redis env vars not found - using in-memory adapter");
+      logger.warn('Redis env vars not found - using in-memory adapter (single instance only)');
       return false;
     }
   } catch (error) {
-    console.log("⚠ Redis initialization failed - using in-memory adapter:", error.message);
+    logger.warn({ err: error }, 'Redis initialization failed - using in-memory adapter');
     return false;
   }
 }
@@ -35,8 +41,14 @@ export function initializeRedis() {
  *   - project:<projectId> - for project-wide communication
  *   - role:<role> - for role-based broadcasts (DEVELOPER, TESTER, ADMIN)
  *   - user:<userId> - for direct notifications
+ * 
+ * @param {object} fastifyServer - Fastify server instance
+ * @returns {object} Socket.IO server instance
  */
 export function setupSocket(fastifyServer) {
+  // Use Fastify's logger
+  logger = fastifyServer.log;
+
   const io = new Server(fastifyServer.server, {
     cors: {
       origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -45,9 +57,15 @@ export function setupSocket(fastifyServer) {
     transports: ["websocket", "polling"],
   });
 
-  // Upstash REST client does not support Socket.IO Redis adapter (pub/sub).
+  /**
+   * SCALING NOTE: Socket.IO uses in-memory adapter by default (single instance only)
+   * For multi-server deployments:
+   * 1. Use standard Redis (not Upstash REST) with @socket.io/redis-adapter
+   * 2. Or use Socket.IO sticky sessions with a load balancer
+   * See: https://socket.io/docs/v4/using-multiple-nodes/
+   */
   if (redisClient) {
-    console.log("⚠ Redis adapter disabled for Upstash REST client; using in-memory adapter");
+    logger.info('Socket.IO using in-memory adapter (Upstash REST does not support pub/sub)');
   }
 
   // Socket connection handler
@@ -122,7 +140,7 @@ export function setupSocket(fastifyServer) {
     try {
       user = await resolveUser(socket);
     } catch (error) {
-      console.error("✗ Socket auth failed:", error.message);
+      logger.warn({ err: error }, 'Socket auth failed');
       socket.disconnect(true);
       return;
     }
@@ -131,7 +149,7 @@ export function setupSocket(fastifyServer) {
     const userRole = user.role;
     const normalizedRole = normalizeRole(userRole);
 
-    console.log(`✓ User connected: ${userId} (${userRole}) - Socket: ${socket.id}`);
+    logger.info({ userId, userRole, socketId: socket.id }, 'User connected to Socket.IO');
 
     // Join user-specific room for direct notifications
     socket.join(`user:${userId}`);
@@ -428,7 +446,7 @@ export function setupSocket(fastifyServer) {
 
     // Error handling
     socket.on("error", (error) => {
-      console.error(`✗ Socket error for ${userId}:`, error);
+      logger.error({ err: error, userId }, 'Socket error');
     });
   });
 

@@ -1,151 +1,171 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/DashboardLayout';
 import MetricsGrid from '@/components/MetricsGrid';
+import BugsList from '@/components/BugsList';
+import BugDetailsModal from '@/components/BugDetailsModal';
+import RequestRetestModal from '@/components/RequestRetestModal';
+import DeveloperReports from '@/components/DeveloperReports';
+import { BarChart3 } from 'lucide-react';
 
 export default function DeveloperDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [selectedBugId, setSelectedBugId] = useState(null);
+  const [showRetestModal, setShowRetestModal] = useState(false);
+  const [retestBugId, setRetestBugId] = useState(null);
+  const [showReports, setShowReports] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const deployments = [
-    {
-      id: 1,
-      name: 'Auth Service v1.2.0',
-      status: 'Live',
-      date: '2024-02-05',
-      environment: 'Production',
-    },
-    {
-      id: 2,
-      name: 'Email Verification Service',
-      status: 'Live',
-      date: '2024-02-04',
-      environment: 'Production',
-    },
-    {
-      id: 3,
-      name: 'Dashboard API v2.0',
-      status: 'Staging',
-      date: '2024-02-03',
-      environment: 'Staging',
-    },
-  ];
+  const handleRequestRetest = (bugId) => {
+    setRetestBugId(bugId);
+    setShowRetestModal(true);
+  };
 
-  const devMetrics = [
-    { label: 'Active Services', value: '8', color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300' },
-    { label: 'API Endpoints', value: '24', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' },
-    { label: 'Uptime', value: '99.8%', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-300' },
-    { label: 'Response Time', value: '120ms', color: 'bg-purple-500/10 text-purple-600 dark:text-purple-300' },
-  ];
-
-  const gitRepositories = [
-    { name: 'testtrack-api', branch: 'main', commits: '234' },
-    { name: 'testtrack-web', branch: 'develop', commits: '189' },
-    { name: 'testtrack-shared', branch: 'main', commits: '56' },
-  ];
+  const handleStatusUpdate = () => {
+    // Refresh bug list
+    setSelectedBugId(null);
+  };
 
   return (
     <DashboardLayout
       user={user}
       dashboardLabel="Developer Dashboard"
       headerTitle={`Welcome, ${user.name}!`}
-      headerSubtitle="Monitor your services and deployments"
+      headerSubtitle="Manage assigned bugs and fixes"
       onLogout={handleLogout}
     >
-      <MetricsGrid metrics={devMetrics} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="tt-card">
-          <div className="px-6 py-4 border-b border-[var(--border)]">
-            <h3 className="text-lg font-semibold">Recent Deployments</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Service</th>
-                  <th className="px-6 py-3 text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Status</th>
-                  <th className="px-6 py-3 text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {deployments.map((deployment) => (
-                  <tr key={deployment.id} className="hover:bg-[var(--bg-elevated)] transition">
-                    <td className="px-6 py-4 text-sm font-medium">{deployment.name}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          deployment.status === 'Live'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
-                            : 'bg-blue-500/10 text-blue-600 dark:text-blue-300'
-                        }`}
-                      >
-                        {deployment.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-[var(--muted)]">{deployment.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* Tab Navigation */}
+      <div className="mb-6 border-b border-[var(--border)]">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setShowReports(false)}
+            className={`px-4 py-2 font-medium transition ${
+              !showReports
+                ? 'text-indigo-500 border-b-2 border-indigo-500'
+                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            Bug Management
+          </button>
+          <button
+            onClick={() => setShowReports(true)}
+            className={`px-4 py-2 font-medium transition flex items-center gap-2 ${
+              showReports
+                ? 'text-indigo-500 border-b-2 border-indigo-500'
+                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Reports & Analytics
+          </button>
         </div>
+      </div>
 
-        <div className="tt-card">
-          <div className="px-6 py-4 border-b border-[var(--border)]">
-            <h3 className="text-lg font-semibold">Git Repositories</h3>
+      {/* Content based on tab */}
+      {!showReports ? (
+        <>
+          {/* Bug Management */}
+          <div className="grid grid-cols-1 gap-6 mb-8">
+            <BugsList
+              onBugSelect={setSelectedBugId}
+              onStatusUpdate={handleStatusUpdate}
+              onRequestRetest={handleRequestRetest}
+            />
           </div>
-          <div className="divide-y divide-[var(--border)]">
-            {gitRepositories.map((repo, index) => (
-              <div key={index} className="px-6 py-4 hover:bg-[var(--bg-elevated)] transition">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">{repo.name}</h4>
-                  <span className="text-xs bg-[var(--bg-elevated)] text-[var(--muted-strong)] px-2 py-1 rounded-full border border-[var(--border)]">
-                    {repo.branch}
+
+          {/* Developer Info Card */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="tt-card p-6">
+              <h3 className="text-lg font-semibold mb-4">Developer Information</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[var(--muted)]">Email:</span>
+                  <span className="font-medium">{user.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--muted)]">Role:</span>
+                  <span className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-medium px-3 py-1 rounded-full">
+                    Developer
                   </span>
                 </div>
-                <p className="text-xs text-[var(--muted)]">{repo.commits} commits</p>
+                <div className="flex justify-between">
+                  <span className="text-[var(--muted)]">Status:</span>
+                  <span className="text-[var(--success)] font-medium">Active</span>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="tt-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Development Tools</h3>
-          <div className="space-y-3">
-            <button className="tt-btn tt-btn-primary w-full py-2 text-sm">Deploy Service</button>
-            <button className="tt-btn tt-btn-outline w-full py-2 text-sm">View Logs</button>
-            <button className="tt-btn tt-btn-outline w-full py-2 text-sm">Check APIs</button>
-          </div>
-        </div>
+            <div className="tt-card p-6">
+              <h3 className="text-lg font-semibold mb-4">Bug Management Tips</h3>
+              <ul className="space-y-2 text-sm text-[var(--muted)]">
+                <li>✓ Click on a bug to view detailed information</li>
+                <li>✓ Use filters to find bugs by status or priority</li>
+                <li>✓ Update fix documentation when resolving bugs</li>
+                <li>✓ Request retest when you mark a bug as Fixed</li>
+              </ul>
+            </div>
 
-        <div className="tt-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Developer Information</h3>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[var(--muted)]">Email:</span>
-              <span className="font-medium">{user.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--muted)]">Role:</span>
-              <span className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-medium px-3 py-1 rounded-full">
-                Developer
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--muted)]">Status:</span>
-              <span className="text-[var(--success)] font-medium">Active</span>
+            <div className="tt-card p-6">
+              <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    // Filter to show only "IN_PROGRESS" bugs
+                  }}
+                  className="w-full px-4 py-2 bg-yellow-500/10 text-yellow-600 dark:text-yellow-300 rounded hover:bg-yellow-500/20 transition text-sm font-medium"
+                >
+                  View In Progress
+                </button>
+                <button
+                  onClick={() => {
+                    // Filter to show only "NEW" bugs
+                  }}
+                  className="w-full px-4 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-300 rounded hover:bg-blue-500/20 transition text-sm font-medium"
+                >
+                  View New Bugs
+                </button>
+                <button
+                  onClick={() => setShowReports(true)}
+                  className="w-full px-4 py-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 rounded hover:bg-indigo-500/20 transition text-sm font-medium flex items-center justify-center gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  View Reports
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      ) : (
+        <DeveloperReports />
+      )}
+
+      {/* Bug Details Modal */}
+      {selectedBugId && (
+        <BugDetailsModal
+          bugId={selectedBugId}
+          onClose={() => setSelectedBugId(null)}
+          onStatusUpdate={handleStatusUpdate}
+          onRequestRetest={handleRequestRetest}
+        />
+      )}
+
+      {/* Request Retest Modal */}
+      {showRetestModal && retestBugId && (
+        <RequestRetestModal
+          bugId={retestBugId}
+          onClose={() => setShowRetestModal(false)}
+          onSuccess={() => {
+            handleStatusUpdate();
+            // Close modal
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
