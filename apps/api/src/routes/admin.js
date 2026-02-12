@@ -3,6 +3,7 @@ import { createAuthGuards } from '../lib/rbac.js';
 import { ROLES, hasPermission, isForbidden } from '../lib/permissions.js';
 import { logAuditAction, getAuditLogs, getUserAuditLogs, exportAuditLogs } from '../services/auditService.js';
 import * as adminProjectService from '../services/adminProjectService.js';
+import { unlockAccount } from '../services/authService.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
@@ -439,6 +440,33 @@ export async function adminRoutes(fastify) {
     });
 
     return { message: 'Password reset token generated', resetToken };
+  });
+
+  // Unlock Account
+  fastify.post('/api/admin/users/:id/unlock', { preHandler: [requireAuth, adminOnly] }, async (request, reply) => {
+    try {
+      const targetUserId = Number(request.params.id);
+
+      if (Number.isNaN(targetUserId)) {
+        return reply.code(400).send({ error: 'Invalid user id' });
+      }
+
+      const result = await unlockAccount(request.user.id, targetUserId);
+
+      // Log audit
+      await logAuditAction(request.user.id, 'USER_ACCOUNT_UNLOCKED', {
+        resourceType: 'USER',
+        resourceId: targetUserId,
+        resourceName: result.user.name,
+        description: `Unlocked account for: ${result.user.email}`,
+        ...getClientContext(request),
+      });
+
+      reply.code(200).send(result);
+    } catch (error) {
+      fastify.log.error(error);
+      reply.code(500).send({ error: error.message });
+    }
   });
 
   // ==========================================

@@ -26,16 +26,19 @@ import {
 const prisma = getPrismaClient();
 
 /**
- * Generate unique bug number
+ * Generate unique bug number with atomic increment to prevent collisions
  * @param {number} projectId - Project ID
  * @returns {Promise<string>} Bug number (e.g., BUG-001)
  */
 async function generateBugNumber(projectId) {
-  const count = await prisma.defect.count({
+  // Use atomic counter to ensure uniqueness under concurrent access
+  const counter = await prisma.bugCounter.upsert({
     where: { projectId },
+    create: { projectId, nextNumber: 1 },
+    update: { nextNumber: { increment: 1 } },
   });
   
-  const number = (count + 1).toString().padStart(3, '0');
+  const number = counter.nextNumber.toString().padStart(3, '0');
   return `BUG-${number}`;
 }
 

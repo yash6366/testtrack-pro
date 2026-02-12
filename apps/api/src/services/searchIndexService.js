@@ -24,6 +24,7 @@ export async function indexTestCase(testCaseId, projectId) {
         tags: true,
         type: true,
         priority: true,
+        isDeleted: true,
       },
     });
 
@@ -68,7 +69,6 @@ export async function indexTestCase(testCaseId, projectId) {
       },
     });
   } catch (error) {
-    console.error(`✗ Failed to index test case ${testCaseId}:`, error);
     throw error;
   }
 }
@@ -135,7 +135,6 @@ export async function indexBug(bugId, projectId) {
       },
     });
   } catch (error) {
-    console.error(`✗ Failed to index bug ${bugId}:`, error);
     throw error;
   }
 }
@@ -196,7 +195,6 @@ export async function indexTestExecution(executionId, projectId) {
       },
     });
   } catch (error) {
-    console.error(`✗ Failed to index execution ${executionId}:`, error);
     throw error;
   }
 }
@@ -215,7 +213,6 @@ export async function deleteIndex(resourceType, resourceId) {
       },
     });
   } catch (error) {
-    console.error(`✗ Failed to delete index for ${resourceType} ${resourceId}:`, error);
     throw error;
   }
 }
@@ -226,8 +223,6 @@ export async function deleteIndex(resourceType, resourceId) {
  */
 export async function rebuildProjectIndex(projectId) {
   try {
-    console.log(`→ Rebuilding search index for project ${projectId}`);
-
     // Clear existing index
     await prisma.searchIndex.deleteMany({
       where: { projectId },
@@ -265,9 +260,6 @@ export async function rebuildProjectIndex(projectId) {
       await indexTestExecution(exec.id, projectId);
     }
 
-    const totalIndexed = testCases.length + bugs.length + executions.length;
-    console.log(`✓ Rebuilt search index for project ${projectId}: ${totalIndexed} resources`);
-
     return {
       projectId,
       testCasesIndexed: testCases.length,
@@ -276,7 +268,6 @@ export async function rebuildProjectIndex(projectId) {
       total: totalIndexed,
     };
   } catch (error) {
-    console.error(`✗ Failed to rebuild index for project ${projectId}:`, error);
     throw error;
   }
 }
@@ -346,7 +337,6 @@ export async function searchIndex(projectId, query, resourceTypes = ['TEST_CASE'
 
     return enriched;
   } catch (error) {
-    console.error('✗ Search index error:', error);
     throw error;
   }
 }
@@ -400,7 +390,6 @@ export async function getSearchSuggestions(projectId, query = '', resourceTypes 
       url: getResourceUrl(s.resourceType, s.resourceId),
     }));
   } catch (error) {
-    console.error('✗ Search suggestions error:', error);
     throw error;
   }
 }

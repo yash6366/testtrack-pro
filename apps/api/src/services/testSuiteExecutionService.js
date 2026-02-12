@@ -86,20 +86,66 @@ export async function executeSuite(suiteId, options, userId) {
     },
   });
 
+  const testCaseIds = [...new Set(testCases.map((tc) => tc.testCase?.id || tc.id))];
+
   // Create TestExecution records for each test case
-  const executionPromises = testCases.map((tc, index) =>
-    prisma.testExecution.create({
-      data: {
-        testRunId: testRun.id,
-        testCaseId: tc.testCase?.id || tc.id,
-        suiteRunId: suiteRun.id,
-        status: 'PASSED', // Default status - would be updated during actual execution
-        executedBy: userId,
-      },
-    })
+  const executions = await Promise.all(
+    testCases.map((tc) =>
+      prisma.testExecution.create({
+        data: {
+          testRunId: testRun.id,
+          testCaseId: tc.testCase?.id || tc.id,
+          suiteRunId: suiteRun.id,
+          status: 'BLOCKED',
+          executedBy: userId,
+        },
+        select: {
+          id: true,
+          testCaseId: true,
+        },
+      })
+    )
   );
 
-  await Promise.all(executionPromises);
+  // Seed execution steps from test case steps
+  const testSteps = await prisma.testStep.findMany({
+    where: {
+      testCaseId: { in: testCaseIds },
+    },
+    select: {
+      id: true,
+      testCaseId: true,
+    },
+    orderBy: {
+      stepNumber: 'asc',
+    },
+  });
+
+  const stepsByCaseId = new Map();
+  for (const step of testSteps) {
+    if (!stepsByCaseId.has(step.testCaseId)) {
+      stepsByCaseId.set(step.testCaseId, []);
+    }
+    stepsByCaseId.get(step.testCaseId).push(step);
+  }
+
+  const executionSteps = [];
+  for (const execution of executions) {
+    const steps = stepsByCaseId.get(execution.testCaseId) || [];
+    for (const step of steps) {
+      executionSteps.push({
+        executionId: execution.id,
+        stepId: step.id,
+        status: 'SKIPPED',
+      });
+    }
+  }
+
+  if (executionSteps.length > 0) {
+    await prisma.testExecutionStep.createMany({
+      data: executionSteps,
+    });
+  }
 
   // If executeChildSuites, recursively execute child suites
   if (executeChildSuites) {

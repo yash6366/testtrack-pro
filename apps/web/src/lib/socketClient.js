@@ -12,7 +12,6 @@ let listeners = new Map(); // Store event listeners for cleanup
  */
 export function connectSocket(token, userId, userRole) {
   if (socket?.connected) {
-    console.log("✓ Socket already connected");
     return socket;
   }
 
@@ -33,19 +32,19 @@ export function connectSocket(token, userId, userRole) {
 
   // Connection events
   socket.on("connect", () => {
-    console.log("✓ Socket connected:", socket.id);
+    // Connection established
   });
 
   socket.on("disconnect", (reason) => {
-    console.log("✗ Socket disconnected:", reason);
+    // Disconnected from server
   });
 
   socket.on("error", (error) => {
-    console.error("✗ Socket error:", error);
+    // Socket error occurred
   });
 
   socket.on("connect_error", (error) => {
-    console.error("✗ Connection error:", error.message);
+    // Connection error occurred
   });
 
   return socket;
@@ -183,11 +182,11 @@ export function onNotification(callback) {
   }
 
   const currentSocket = socket;
-  currentSocket.on("notification", callback);
+  currentSocket.on("notification:new", callback);
 
   return () => {
     if (currentSocket) {
-      currentSocket.off("notification", callback);
+      currentSocket.off("notification:new", callback);
     }
   };
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import { FolderKanban } from 'lucide-react';
 
 export default function TestSuitesPage() {
   const navigate = useNavigate();
@@ -198,8 +199,24 @@ export default function TestSuitesPage() {
 
   if (!projectId) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-gray-500">Please select a project to view test suites</p>
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center">
+          <div className="bg-[var(--surface)] rounded-2xl p-8 border border-[var(--border)] shadow-lg">
+            <div className="w-16 h-16 bg-[var(--primary)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FolderKanban className="w-8 h-8 text-[var(--primary)]" />
+            </div>
+            <h2 className="text-2xl font-semibold mb-2">No Project Selected</h2>
+            <p className="text-[var(--muted)] mb-6">
+              Please select a project from the dropdown in the navigation bar to view test suites.
+            </p>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="tt-btn tt-btn-primary px-6 py-2.5"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

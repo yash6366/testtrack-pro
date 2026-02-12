@@ -116,6 +116,7 @@ export async function generateExecutionReport(testRunId) {
       startedAt: testRun.actualStartDate,
       completedAt: testRun.actualEndDate,
       durationSeconds: duration,
+      executions: testRun.executions,
     },
     project: testRun.project,
     executor: testRun.executor,

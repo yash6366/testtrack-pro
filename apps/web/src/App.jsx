@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Home from '@/pages/Home';
 import Signup from '@/pages/Signup';
 import Login from '@/pages/Login';
@@ -15,9 +16,14 @@ import BugsPage from '@/pages/BugsPage';
 import BugDetailsPage from '@/pages/BugDetailsPage';
 import BugCreationForm from '@/pages/BugCreationForm';
 import TestSuitesPage from '@/pages/TestSuitesPage';
+import TestSuiteCreatePage from '@/pages/TestSuiteCreatePage';
 import TestSuiteDetailPage from '@/pages/TestSuiteDetailPage';
 import SuiteRunDetailPage from '@/pages/SuiteRunDetailPage';
 import ReportsPage from '@/pages/ReportsPage';
+import AdminUserDetailPage from '@/pages/AdminUserDetailPage';
+import TestCaseDetailPage from '@/pages/TestCaseDetailPage';
+import TestRunDetailPage from '@/pages/TestRunDetailPage';
+import SearchResultsPage from '@/pages/SearchResultsPage';
 import NotificationToast from '@/components/NotificationToast';
 import DashboardLayout from '@/components/DashboardLayout';
 
@@ -112,16 +118,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
               <TestExecution />
-                  <Route
-                    path="/test-execution/:executionId/summary"
-                    element={
-                      <ProtectedRoute>
-                        <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-                          <TestExecutionSummary />
-                        </RoleRoute>
-                      </ProtectedRoute>
-                    }
-                  />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-execution/:executionId/summary"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <TestExecutionSummary />
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -167,6 +173,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/test-suites/create"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <TestSuiteCreatePage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/test-suites/:suiteId"
         element={
           <ProtectedRoute>
@@ -196,6 +212,46 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/test-cases/:testCaseId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <TestCaseDetailPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-run/:testRunId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <TestRunDetailPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/search"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <SearchResultsPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users/:userId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN"]}>
+              <AdminUserDetailPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -203,18 +259,20 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <Router
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <AppRoutes />
-          <NotificationToast />
-        </Router>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <AppRoutes />
+            <NotificationToast />
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

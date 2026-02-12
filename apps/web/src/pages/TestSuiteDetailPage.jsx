@@ -5,6 +5,8 @@ import { apiClient } from '../lib/apiClient';
 export default function TestSuiteDetailPage() {
   const { suiteId } = useParams();
   const navigate = useNavigate();
+  const suiteIdNumber = Number(suiteId);
+  const isValidSuiteId = Number.isFinite(suiteIdNumber) && suiteIdNumber > 0;
 
   const [suite, setSuite] = useState(null);
   const [testCases, setTestCases] = useState([]);
@@ -14,6 +16,12 @@ export default function TestSuiteDetailPage() {
   const [activeTab, setActiveTab] = useState('testcases'); // 'testcases', 'history', 'details'
 
   useEffect(() => {
+    if (!isValidSuiteId) {
+      setError('Invalid test suite id');
+      setLoading(false);
+      return;
+    }
+
     loadSuiteDetails();
     loadTestCases();
     loadExecutionHistory();
@@ -21,7 +29,7 @@ export default function TestSuiteDetailPage() {
 
   const loadSuiteDetails = async () => {
     try {
-      const response = await apiClient.get(`/api/test-suites/${suiteId}`);
+      const response = await apiClient.get(`/api/test-suites/${suiteIdNumber}`);
       setSuite(response);
     } catch (err) {
       setError(err.message || 'Failed to load suite details');
@@ -32,7 +40,7 @@ export default function TestSuiteDetailPage() {
 
   const loadTestCases = async () => {
     try {
-      const response = await apiClient.get(`/api/test-suites/${suiteId}/test-cases`);
+      const response = await apiClient.get(`/api/test-suites/${suiteIdNumber}/test-cases`);
       setTestCases(response);
     } catch (err) {
       console.error('Failed to load test cases:', err);
@@ -41,7 +49,7 @@ export default function TestSuiteDetailPage() {
 
   const loadExecutionHistory = async () => {
     try {
-      const response = await apiClient.get(`/api/test-suites/${suiteId}/runs?limit=5`);
+      const response = await apiClient.get(`/api/test-suites/${suiteIdNumber}/runs?limit=5`);
       setExecutionHistory(response);
     } catch (err) {
       console.error('Failed to load execution history:', err);
@@ -52,7 +60,7 @@ export default function TestSuiteDetailPage() {
     const environment = prompt('Enter environment (DEVELOPMENT/STAGING/UAT/PRODUCTION):', 'STAGING');
     if (environment) {
       try {
-        const response = await apiClient.post(`/api/test-suites/${suiteId}/execute`, {
+        const response = await apiClient.post(`/api/test-suites/${suiteIdNumber}/execute`, {
           environment,
           executeChildSuites: true,
         });
@@ -69,7 +77,7 @@ export default function TestSuiteDetailPage() {
     if (testCaseIds) {
       try {
         const ids = testCaseIds.split(',').map(id => parseInt(id.trim()));
-        await apiClient.post(`/api/test-suites/${suiteId}/test-cases`, { testCaseIds: ids });
+        await apiClient.post(`/api/test-suites/${suiteIdNumber}/test-cases`, { testCaseIds: ids });
         alert('Test cases added successfully');
         loadTestCases();
       } catch (err) {
@@ -81,7 +89,7 @@ export default function TestSuiteDetailPage() {
   const handleRemoveTestCase = async (testCaseId) => {
     if (confirm('Remove this test case from suite?')) {
       try {
-        await apiClient.delete(`/api/test-suites/${suiteId}/test-cases/${testCaseId}`);
+        await apiClient.delete(`/api/test-suites/${suiteIdNumber}/test-cases/${testCaseId}`);
         loadTestCases();
       } catch (err) {
         alert(`Failed to remove test case: ${err.message}`);
@@ -90,7 +98,7 @@ export default function TestSuiteDetailPage() {
   };
 
   const handleEditSuite = () => {
-    navigate(`/test-suites/${suiteId}/edit`);
+    navigate(`/test-suites/${suiteIdNumber}/edit`);
   };
 
   if (loading) {

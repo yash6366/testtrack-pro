@@ -2,7 +2,7 @@ import cors from '@fastify/cors';
 
 export async function setupCors(fastify) {
   const allowList = new Set(
-    [process.env.FRONTEND_URL, 'http://localhost:5173']
+    [process.env.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:5174']
       .filter(Boolean)
       .map((value) => value.trim())
   );

@@ -445,50 +445,33 @@ export async function allocateUserToProject(projectId, userId, data, adminId) {
     throw new Error(`Invalid project role. Must be one of: ${validRoles.join(', ')}`);
   }
 
-  // Check if already allocated
-  const existing = await prisma.projectUserAllocation.findUnique({
+  // Use upsert to atomically handle create or update (prevents race conditions)
+  // If user was previously deallocated, this reactivates them
+  // If user is already active, this updates their role
+  const allocation = await prisma.projectUserAllocation.upsert({
     where: {
       projectId_userId: {
         projectId,
         userId,
       },
     },
+    update: {
+      role: role.toUpperCase(),
+      isActive: true,
+      unallocationDate: null,
+    },
+    create: {
+      projectId,
+      userId,
+      role: role.toUpperCase(),
+      isActive: true,
+    },
+    include: {
+      user: {
+        select: { id: true, name: true, email: true },
+      },
+    },
   });
-
-  if (existing && existing.isActive) {
-    throw new Error('User is already allocated to this project');
-  }
-
-  // If previously allocated, reactivate; otherwise create new
-  let allocation;
-  if (existing) {
-    allocation = await prisma.projectUserAllocation.update({
-      where: { id: existing.id },
-      data: {
-        role: role.toUpperCase(),
-        isActive: true,
-        unallocationDate: null,
-      },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-    });
-  } else {
-    allocation = await prisma.projectUserAllocation.create({
-      data: {
-        projectId,
-        userId,
-        role: role.toUpperCase(),
-      },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-    });
-  }
 
   // Log audit
   await logAuditAction(adminId, 'ADMIN_ACTION', {
@@ -528,11 +511,11 @@ export async function deallocateUserFromProject(projectId, userId, adminId) {
   });
 
   if (!allocation) {
-    throw new Error('User is not allocated to this project');
+    throw new Error('User has never been allocated to this project');
   }
 
   if (!allocation.isActive) {
-    throw new Error('User is not currently allocated to this project');
+    throw new Error('User has already been removed from this project');
   }
 
   // Deactivate allocation

@@ -12,7 +12,7 @@ export async function evidenceRoutes(fastify) {
 
   fastify.post(
     '/api/projects/:projectId/test-executions/:executionId/steps/:stepId/evidence/signature',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER'])] },
+    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
     async (request, reply) => {
       let params;
       try {
@@ -43,7 +43,7 @@ export async function evidenceRoutes(fastify) {
 
   fastify.post(
     '/api/projects/:projectId/test-executions/:executionId/steps/:stepId/evidence',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER'])] },
+    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
     async (request, reply) => {
       let params;
       try {

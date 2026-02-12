@@ -22,106 +22,131 @@ export async function globalSearch(projectId, query, resourceTypes = ['TEST_CASE
     throw new Error('Search query must be at least 2 characters');
   }
 
-  const searchQuery = query.trim().toLowerCase();
+  const rawQuery = query.trim();
+  const searchQuery = rawQuery.toLowerCase();
   const results = {};
+  const projectIdNum = Number(projectId);
+
+  const getIndexMatches = async (resourceType) =>
+    prisma.searchIndex.findMany({
+      where: {
+        projectId: projectIdNum,
+        resourceType,
+        OR: [
+          { title: { contains: searchQuery, mode: 'insensitive' } },
+          { content: { contains: searchQuery, mode: 'insensitive' } },
+          { tags: { hasSome: [searchQuery, rawQuery] } },
+        ],
+      },
+      select: { resourceId: true },
+      orderBy: { updatedAt: 'desc' },
+      skip: Number(skip),
+      take: Number(take),
+    });
+
+  const sortByIndex = (items, indexMap) =>
+    items.sort((a, b) => (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0));
 
   // Search test cases
   if (resourceTypes.includes('TEST_CASE')) {
-    const testCases = await prisma.testCase.findMany({
-      where: {
-        projectId: Number(projectId),
-        isDeleted: false,
-        OR: [
-          { name: { contains: searchQuery, mode: 'insensitive' } },
-          { description: { contains: searchQuery, mode: 'insensitive' } },
-          { tags: { hasSome: [searchQuery] } },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        type: true,
-        priority: true,
-        status: true,
-        createdAt: true,
-      },
-      skip: Number(skip),
-      take: Number(take),
-      orderBy: { createdAt: 'desc' },
-    });
+    const matches = await getIndexMatches('TEST_CASE');
+    const ids = matches.map((match) => match.resourceId);
 
-    results.testCases = testCases.map(tc => ({
-      ...tc,
-      resourceType: 'TEST_CASE',
-      url: `/tests/${tc.id}`,
-    }));
+    if (ids.length === 0) {
+      results.testCases = [];
+    } else {
+      const indexMap = new Map(ids.map((id, index) => [id, index]));
+      const testCases = await prisma.testCase.findMany({
+        where: {
+          id: { in: ids },
+          projectId: projectIdNum,
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          type: true,
+          priority: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+
+      results.testCases = sortByIndex(testCases, indexMap).map((tc) => ({
+        ...tc,
+        resourceType: 'TEST_CASE',
+        url: `/tests/${tc.id}`,
+      }));
+    }
   }
 
   // Search bugs
   if (resourceTypes.includes('BUG')) {
-    const bugs = await prisma.defect.findMany({
-      where: {
-        projectId: Number(projectId),
-        OR: [
-          { title: { contains: searchQuery, mode: 'insensitive' } },
-          { description: { contains: searchQuery, mode: 'insensitive' } },
-          { bugNumber: { contains: searchQuery, mode: 'insensitive' } },
-        ],
-      },
-      select: {
-        id: true,
-        bugNumber: true,
-        title: true,
-        description: true,
-        severity: true,
-        priority: true,
-        status: true,
-        createdAt: true,
-      },
-      skip: Number(skip),
-      take: Number(take),
-      orderBy: { createdAt: 'desc' },
-    });
+    const matches = await getIndexMatches('BUG');
+    const ids = matches.map((match) => match.resourceId);
 
-    results.bugs = bugs.map(bug => ({
-      ...bug,
-      resourceType: 'BUG',
-      url: `/bugs/${bug.id}`,
-    }));
+    if (ids.length === 0) {
+      results.bugs = [];
+    } else {
+      const indexMap = new Map(ids.map((id, index) => [id, index]));
+      const bugs = await prisma.defect.findMany({
+        where: {
+          id: { in: ids },
+          projectId: projectIdNum,
+        },
+        select: {
+          id: true,
+          bugNumber: true,
+          title: true,
+          description: true,
+          severity: true,
+          priority: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+
+      results.bugs = sortByIndex(bugs, indexMap).map((bug) => ({
+        ...bug,
+        resourceType: 'BUG',
+        url: `/bugs/${bug.id}`,
+      }));
+    }
   }
 
   // Search test executions
   if (resourceTypes.includes('EXECUTION')) {
-    const executions = await prisma.testExecution.findMany({
-      where: {
-        testRun: {
-          projectId: Number(projectId),
-        },
-        OR: [
-          { comments: { contains: searchQuery, mode: 'insensitive' } },
-          { actualResult: { contains: searchQuery, mode: 'insensitive' } },
-          { testCase: { name: { contains: searchQuery, mode: 'insensitive' } } },
-        ],
-      },
-      select: {
-        id: true,
-        status: true,
-        actualResult: true,
-        testCase: { select: { id: true, name: true } },
-        testRun: { select: { id: true, name: true } },
-        createdAt: true,
-      },
-      skip: Number(skip),
-      take: Number(take),
-      orderBy: { createdAt: 'desc' },
-    });
+    const matches = await getIndexMatches('EXECUTION');
+    const ids = matches.map((match) => match.resourceId);
 
-    results.executions = executions.map(exe => ({
-      ...exe,
-      resourceType: 'EXECUTION',
-      url: `/testRuns/${exe.testRun.id}/executions/${exe.id}`,
-    }));
+    if (ids.length === 0) {
+      results.executions = [];
+    } else {
+      const indexMap = new Map(ids.map((id, index) => [id, index]));
+      const executions = await prisma.testExecution.findMany({
+        where: {
+          id: { in: ids },
+          testRun: {
+            projectId: projectIdNum,
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          actualResult: true,
+          testCase: { select: { id: true, name: true } },
+          testRun: { select: { id: true, name: true } },
+          createdAt: true,
+        },
+      });
+
+      results.executions = sortByIndex(executions, indexMap).map((exe) => ({
+        ...exe,
+        resourceType: 'EXECUTION',
+        url: `/testRuns/${exe.testRun.id}/executions/${exe.id}`,
+      }));
+    }
   }
 
   return results;

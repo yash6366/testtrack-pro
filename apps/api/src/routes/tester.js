@@ -50,6 +50,95 @@ export async function testerRoutes(fastify) {
   }
 
   // ============================================
+  // PROJECT ACCESS
+  // ============================================
+
+  /**
+   * Get projects allocated to the tester
+   */
+  fastify.get(
+    '/api/tester/projects',
+    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { skip = 0, take = 50, search } = request.query;
+
+        // Build where clause
+        const where = {
+          isActive: true,
+          projectUserAllocations: {
+            some: {
+              userId,
+              isActive: true,
+            },
+          },
+        };
+
+        if (search) {
+          where.OR = [
+            { name: { contains: search, mode: 'insensitive' } },
+            { key: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ];
+        }
+
+        const [projects, total] = await Promise.all([
+          prisma.project.findMany({
+            where,
+            select: {
+              id: true,
+              name: true,
+              key: true,
+              description: true,
+              modules: true,
+              createdAt: true,
+              projectUserAllocations: {
+                where: {
+                  userId,
+                  isActive: true,
+                },
+                select: {
+                  role: true,
+                  allocationDate: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip: Math.max(0, Number(skip)),
+            take: Math.min(100, Math.max(1, Number(take))),
+          }),
+          prisma.project.count({ where }),
+        ]);
+
+        // Format the response
+        const formattedProjects = projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          key: project.key,
+          description: project.description,
+          modules: project.modules,
+          createdAt: project.createdAt,
+          myRole: project.projectUserAllocations[0]?.role || null,
+          joinedAt: project.projectUserAllocations[0]?.allocationDate || null,
+        }));
+
+        reply.send({
+          projects: formattedProjects,
+          pagination: {
+            skip: Number(skip),
+            take: Number(take),
+            total,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching tester projects:', error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // ============================================
   // TEST CASE MANAGEMENT (TESTER DASHBOARD)
   // ============================================
 

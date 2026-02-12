@@ -6,6 +6,7 @@
 import cron from 'node-cron';
 import { sendPendingDigests } from './digestService.js';
 import { retryFailedDeliveries, cleanupOldDeliveries } from './notificationEmitter.js';
+import { retryFailedDeliveries as retryFailedWebhooks } from './webhookService.js';
 
 let scheduledJobs = [];
 
@@ -42,6 +43,20 @@ export function initializeCronJobs() {
   });
   scheduledJobs.push(retryJob);
 
+  // Retry failed webhook deliveries every 5 minutes
+  const webhookRetryJob = cron.schedule('*/5 * * * *', async () => {
+    console.log('▶ Retrying failed webhook deliveries...');
+    try {
+      const result = await retryFailedWebhooks();
+      if (result.processed > 0) {
+        console.log(`✓ Webhook retry job: processed ${result.processed} deliveries`);
+      }
+    } catch (error) {
+      console.error('✗ Error in webhook retry job:', error);
+    }
+  });
+  scheduledJobs.push(webhookRetryJob);
+
   // Clean up old delivery records every day at 2 AM
   const cleanupJob = cron.schedule('0 2 * * *', async () => {
     console.log('▶ Cleaning up old delivery records...');
@@ -76,6 +91,7 @@ export function getCronJobStatus() {
     jobs: [
       { name: 'Digest Processing', schedule: '30 * * * * (every hour at :30)', active: scheduledJobs.length > 0 },
       { name: 'Failed Delivery Retry', schedule: '*/5 * * * * (every 5 minutes)', active: scheduledJobs.length > 0 },
+      { name: 'Webhook Delivery Retry', schedule: '*/5 * * * * (every 5 minutes)', active: scheduledJobs.length > 0 },
       { name: 'Delivery Record Cleanup', schedule: '0 2 * * * (daily at 2 AM)', active: scheduledJobs.length > 0 },
     ],
   };

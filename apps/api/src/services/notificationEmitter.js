@@ -16,7 +16,6 @@ let ioInstance = null;
  */
 export function initializeNotificationEmitter(io) {
   ioInstance = io;
-  console.log('✓ Notification emitter initialized');
 }
 
 /**
@@ -28,7 +27,6 @@ export function initializeNotificationEmitter(io) {
  */
 export async function emitNotificationToUser(userId, notification, sendEmail = false, skipInApp = false) {
   if (!ioInstance) {
-    console.warn('⚠ Socket.IO not initialized, skipping real-time emission');
     return;
   }
 
@@ -60,10 +58,7 @@ export async function emitNotificationToUser(userId, notification, sendEmail = f
 
       // Update delivery as delivered
       await updateDeliveryStatus(notification.id, 'IN_APP', 'DELIVERED', new Date());
-
-      console.log(`✓ Notification ${notification.id} delivered to user:${userId}`);
     } catch (error) {
-      console.error(`✗ Failed to emit notification ${notification.id}:`, error);
       await updateDeliveryStatus(notification.id, 'IN_APP', 'FAILED', null, error.message);
     }
   }
@@ -73,9 +68,8 @@ export async function emitNotificationToUser(userId, notification, sendEmail = f
     try {
       await createDeliveryRecord(notification.id, 'EMAIL', 'PENDING');
       // Email sending is handled by emailService - just track it here
-      console.log(`→ Email delivery tracked for notification ${notification.id}`);
     } catch (error) {
-      console.error(`✗ Failed to track email delivery:`, error);
+      // Email tracking failed, but notification was sent
     }
   }
 }
@@ -98,7 +92,6 @@ export async function broadcastToRole(role, notification) {
   };
 
   ioInstance.to(roleRoom).emit('role:announcement', payload);
-  console.log(`✓ Broadcast to role:${role}`);
 }
 
 /**

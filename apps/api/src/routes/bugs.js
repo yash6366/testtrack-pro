@@ -15,6 +15,262 @@ import {
   getProjectBugs,
   requestBugRetest,
 } from '../services/bugService.js';
+import { bugObject, errorResponse, bearerAuth, paginationParams } from '../schemas/common.js';
+
+// Bug Swagger schemas
+const createBugSchema = {
+  tags: ['bugs'],
+  summary: 'Create a new bug',
+  description: 'Create a bug from a failed test execution',
+  params: { projectId: { type: 'string', description: 'Project ID' } },
+  body: {
+    type: 'object',
+    required: ['title', 'description', 'environment'],
+    properties: {
+      title: { type: 'string', description: 'Bug title' },
+      description: { type: 'string', description: 'Detailed description' },
+      priority: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3', 'P4'], description: 'Priority level (P0=highest to P4=lowest)' },
+      severity: { type: 'string', enum: ['CRITICAL', 'MAJOR', 'MINOR', 'TRIVIAL'], description: 'Severity level' },
+      environment: { type: 'string', enum: ['DEVELOPMENT', 'STAGING', 'UAT', 'PRODUCTION'] },
+      stepsToReproduce: { type: 'string' },
+      expectedBehavior: { type: 'string' },
+      actualBehavior: { type: 'string' },
+      attachments: { type: 'array', items: { type: 'string' } },
+    },
+  },
+  response: {
+    201: {
+      description: 'Bug created successfully',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const getBugsSchema = {
+  tags: ['bugs'],
+  summary: 'Get bugs for a project',
+  description: 'Retrieve all bugs in a project with optional filtering and pagination',
+  params: { projectId: { type: 'string', description: 'Project ID' } },
+  querystring: {
+    type: 'object',
+    properties: {
+      ...paginationParams,
+      status: { type: 'string', description: 'Filter by status' },
+      priority: { type: 'string', description: 'Filter by priority' },
+      severity: { type: 'string', description: 'Filter by severity' },
+      assigneeId: { type: 'string', description: 'Filter by assignee' },
+      reporterId: { type: 'string', description: 'Filter by reporter' },
+      search: { type: 'string', description: 'Search in title and description' },
+    },
+  },
+  response: {
+    200: {
+      description: 'Bugs retrieved successfully',
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: bugObject },
+        total: { type: 'number' },
+        skip: { type: 'number' },
+        take: { type: 'number' },
+      },
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const getBugSchema = {
+  tags: ['bugs'],
+  summary: 'Get a specific bug',
+  description: 'Retrieve detailed information about a single bug',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  response: {
+    200: {
+      description: 'Bug details',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const updateBugSchema = {
+  tags: ['bugs'],
+  summary: 'Update a bug',
+  description: 'Update bug details (title, description, priority, etc.)',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  body: {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      description: { type: 'string' },
+      priority: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3', 'P4'] },
+      severity: { type: 'string', enum: ['CRITICAL', 'MAJOR', 'MINOR', 'TRIVIAL'] },
+      stepsToReproduce: { type: 'string' },
+      expectedBehavior: { type: 'string' },
+      actualBehavior: { type: 'string' },
+    },
+  },
+  response: {
+    200: {
+      description: 'Bug updated successfully',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const changeBugStatusSchema = {
+  tags: ['bugs'],
+  summary: 'Change bug status',
+  description: 'Update bug status with workflow validation',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  body: {
+    type: 'object',
+    required: ['status'],
+    properties: {
+      status: {
+        type: 'string',
+        enum: [
+          'NEW',
+          'ASSIGNED',
+          'IN_PROGRESS',
+          'FIXED',
+          'AWAITING_VERIFICATION',
+          'VERIFIED_FIXED',
+          'REOPENED',
+          'CANNOT_REPRODUCE',
+          'DUPLICATE',
+          'WORKS_AS_DESIGNED',
+          'CLOSED',
+          'DEFERRED',
+          'WONTFIX',
+        ],
+      },
+    },
+  },
+  response: {
+    200: {
+      description: 'Bug status updated successfully',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const assignBugSchema = {
+  tags: ['bugs'],
+  summary: 'Assign bug to developer',
+  description: 'Assign a bug to a developer for fixing',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  body: {
+    type: 'object',
+    required: ['assigneeId'],
+    properties: {
+      assigneeId: { type: 'number', description: 'User ID of the developer' },
+    },
+  },
+  response: {
+    200: {
+      description: 'Bug assigned successfully',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const verifyBugFixSchema = {
+  tags: ['bugs'],
+  summary: 'Verify bug fix',
+  description: 'Verify that a bug fix is working (Tester only)',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  body: {
+    type: 'object',
+    required: ['verified'],
+    properties: {
+      verified: { type: 'boolean', description: 'Is the fix verified?' },
+      notes: { type: 'string', description: 'Verification notes' },
+    },
+  },
+  response: {
+    200: {
+      description: 'Bug verification completed',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const reopenBugSchema = {
+  tags: ['bugs'],
+  summary: 'Reopen a bug',
+  description: 'Mark a bug as reopened (Tester only)',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  body: {
+    type: 'object',
+    properties: {
+      reason: { type: 'string', description: 'Reason for reopening' },
+    },
+  },
+  response: {
+    200: {
+      description: 'Bug reopened successfully',
+      ...bugObject,
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
+
+const addBugCommentSchema = {
+  tags: ['bugs'],
+  summary: 'Add comment to bug',
+  description: 'Add a comment or discussion to a bug',
+  params: {
+    projectId: { type: 'string', description: 'Project ID' },
+    bugId: { type: 'string', description: 'Bug ID' },
+  },
+  body: {
+    type: 'object',
+    required: ['body'],
+    properties: {
+      body: { type: 'string', description: 'Comment text' },
+      isInternal: { type: 'boolean', description: 'Is this an internal note?', default: false },
+    },
+  },
+  response: {
+    201: {
+      description: 'Comment added successfully',
+      type: 'object',
+    },
+    ...errorResponse,
+  },
+  security: bearerAuth,
+};
 
 export async function bugRoutes(fastify) {
   const { requireAuth, requireRoles } = createAuthGuards(fastify);
@@ -36,7 +292,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.post(
     '/api/projects/:projectId/bugs',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER'])] },
+    { schema: createBugSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER'])] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -45,20 +301,20 @@ export async function bugRoutes(fastify) {
         // Validate required fields
         if (!request.body.title || !request.body.description) {
           return reply.code(400).send({ 
-            error: 'Title and description are required' 
+            error: 'Title and description are required', 
           });
         }
 
         if (!request.body.environment) {
           return reply.code(400).send({ 
-            error: 'Environment is required (DEVELOPMENT, STAGING, UAT, PRODUCTION)' 
+            error: 'Environment is required (DEVELOPMENT, STAGING, UAT, PRODUCTION)', 
           });
         }
 
         const validEnvironments = ['DEVELOPMENT', 'STAGING', 'UAT', 'PRODUCTION'];
         if (!validEnvironments.includes(request.body.environment)) {
           return reply.code(400).send({ 
-            error: `Invalid environment. Must be one of: ${validEnvironments.join(', ')}` 
+            error: `Invalid environment. Must be one of: ${validEnvironments.join(', ')}`, 
           });
         }
 
@@ -67,7 +323,7 @@ export async function bugRoutes(fastify) {
             ...request.body,
             projectId: Number(projectId),
           },
-          userId
+          userId,
         );
 
         reply.code(201).send(bug);
@@ -75,7 +331,7 @@ export async function bugRoutes(fastify) {
         console.error('Error creating bug:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -83,7 +339,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.get(
     '/api/projects/:projectId/bugs',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: getBugsSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -105,7 +361,7 @@ export async function bugRoutes(fastify) {
         console.error('Error fetching bugs:', error);
         reply.code(500).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -113,7 +369,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.get(
     '/api/projects/:projectId/bugs/:bugId',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: getBugSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -123,7 +379,7 @@ export async function bugRoutes(fastify) {
         console.error('Error fetching bug:', error);
         reply.code(404).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -131,7 +387,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.patch(
     '/api/projects/:projectId/bugs/:bugId',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: updateBugSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -143,7 +399,7 @@ export async function bugRoutes(fastify) {
         console.error('Error updating bug:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   // ============================================
@@ -155,7 +411,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.patch(
     '/api/projects/:projectId/bugs/:bugId/status',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER'])] },
+    { schema: changeBugStatusSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -172,7 +428,7 @@ export async function bugRoutes(fastify) {
           status,
           userId,
           userRole,
-          getClientContext(request)
+          getClientContext(request),
         );
 
         reply.send(updated);
@@ -180,7 +436,7 @@ export async function bugRoutes(fastify) {
         console.error('Error changing bug status:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -188,7 +444,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.patch(
     '/api/projects/:projectId/bugs/:bugId/assign',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: assignBugSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -202,7 +458,7 @@ export async function bugRoutes(fastify) {
         const updated = await assignBug(
           Number(bugId),
           Number(assigneeId),
-          userId
+          userId,
         );
 
         reply.send(updated);
@@ -210,7 +466,7 @@ export async function bugRoutes(fastify) {
         console.error('Error assigning bug:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -218,7 +474,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.post(
     '/api/projects/:projectId/bugs/:bugId/verify',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { schema: verifyBugFixSchema, preHandler: [requireAuth, requireRoles(['TESTER'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -235,7 +491,7 @@ export async function bugRoutes(fastify) {
           newStatus,
           userId,
           'TESTER',
-          getClientContext(request)
+          getClientContext(request),
         );
 
         // Add verification comment
@@ -248,7 +504,7 @@ export async function bugRoutes(fastify) {
         console.error('Error verifying bug:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -256,7 +512,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.post(
     '/api/projects/:projectId/bugs/:bugId/reopen',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { schema: reopenBugSchema, preHandler: [requireAuth, requireRoles(['TESTER'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -268,7 +524,7 @@ export async function bugRoutes(fastify) {
           'REOPENED',
           userId,
           'TESTER',
-          getClientContext(request)
+          getClientContext(request),
         );
 
         // Add reopen comment
@@ -281,7 +537,7 @@ export async function bugRoutes(fastify) {
         console.error('Error reopening bug:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   // ============================================
@@ -293,7 +549,7 @@ export async function bugRoutes(fastify) {
    */
   fastify.post(
     '/api/projects/:projectId/bugs/:bugId/comments',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: addBugCommentSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
@@ -304,7 +560,7 @@ export async function bugRoutes(fastify) {
           Number(bugId),
           body,
           userId,
-          isInternal || false
+          isInternal || false,
         );
 
         reply.code(201).send(comment);
@@ -312,7 +568,7 @@ export async function bugRoutes(fastify) {
         console.error('Error adding comment:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   // ============================================
@@ -338,7 +594,7 @@ export async function bugRoutes(fastify) {
         const retestRequest = await requestBugRetest(
           Number(bugId),
           userId,
-          Number(testerId)
+          Number(testerId),
         );
 
         reply.code(201).send(retestRequest);
@@ -346,7 +602,7 @@ export async function bugRoutes(fastify) {
         console.error('Error requesting retest:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -377,7 +633,7 @@ export async function bugRoutes(fastify) {
         console.error('Error fetching reported bugs:', error);
         reply.code(500).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -408,7 +664,7 @@ export async function bugRoutes(fastify) {
         console.error('Error fetching assigned bugs:', error);
         reply.code(500).send({ error: error.message });
       }
-    }
+    },
   );
 
   // ============================================
@@ -448,13 +704,13 @@ export async function bugRoutes(fastify) {
             totalCount: result.total,
             page: request.query.page || 1,
             limit: filters.take,
-          }
+          },
         });
       } catch (error) {
         console.error('Error fetching bugs:', error);
         reply.code(500).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -472,7 +728,7 @@ export async function bugRoutes(fastify) {
         console.error('Error fetching bug:', error);
         reply.code(404).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -497,7 +753,7 @@ export async function bugRoutes(fastify) {
           newStatus,
           userId,
           userRole,
-          getClientContext(request)
+          getClientContext(request),
         );
 
         // Add status change comment if reason provided
@@ -506,7 +762,7 @@ export async function bugRoutes(fastify) {
             Number(bugId),
             `Status changed to ${newStatus}: ${reason}`,
             userId,
-            false
+            false,
           );
         }
 
@@ -515,7 +771,7 @@ export async function bugRoutes(fastify) {
         console.error('Error changing bug status:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -534,7 +790,7 @@ export async function bugRoutes(fastify) {
           Number(bugId),
           body,
           userId,
-          isInternal || false
+          isInternal || false,
         );
 
         reply.code(201).send(comment);
@@ -542,7 +798,7 @@ export async function bugRoutes(fastify) {
         console.error('Error adding comment:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -559,14 +815,14 @@ export async function bugRoutes(fastify) {
 
         if (!testerId) {
           return reply.code(400).send({ 
-            error: 'testerId is required for retest request' 
+            error: 'testerId is required for retest request', 
           });
         }
 
         const retestRequest = await requestBugRetest(
           Number(bugId),
           userId,
-          Number(testerId)
+          Number(testerId),
         );
 
         // Add note as comment if provided
@@ -575,7 +831,7 @@ export async function bugRoutes(fastify) {
             Number(bugId),
             `Re-test requested: ${notes}`,
             userId,
-            false
+            false,
           );
         }
 
@@ -584,7 +840,7 @@ export async function bugRoutes(fastify) {
         console.error('Error requesting retest:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -644,7 +900,7 @@ export async function bugRoutes(fastify) {
         console.error('Error linking commit:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 
   /**
@@ -666,7 +922,7 @@ export async function bugRoutes(fastify) {
         const updated = await assignBug(
           Number(bugId),
           Number(assigneeId),
-          userId
+          userId,
         );
 
         // Add assignment comment if reason provided
@@ -675,7 +931,7 @@ export async function bugRoutes(fastify) {
             Number(bugId),
             `Assigned: ${reason}`,
             userId,
-            false
+            false,
           );
         }
 
@@ -684,7 +940,7 @@ export async function bugRoutes(fastify) {
         console.error('Error assigning bug:', error);
         reply.code(400).send({ error: error.message });
       }
-    }
+    },
   );
 }
 

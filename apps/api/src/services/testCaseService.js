@@ -157,62 +157,150 @@ export async function updateTestCase(testCaseId, updates, userId, auditContext =
     steps,
     assignedToId,
     ownedById,
+    changeNote,
+    automationStatus,
   } = updates;
 
-  // Update test case
-  const updated = await prisma.testCase.update({
-    where: { id: testCaseId },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(preconditions !== undefined && { preconditions }),
-      ...(testData !== undefined && { testData }),
-      ...(environment !== undefined && { environment }),
-      ...(type && { type }),
-      ...(priority && { priority }),
-      ...(severity && { severity }),
-      ...(status && { status }),
-      ...(estimatedDurationMinutes !== undefined && { estimatedDurationMinutes }),
-      ...(moduleArea !== undefined && { moduleArea }),
-      ...(tags !== undefined && { tags }),
-      ...(assignedToId !== undefined && { assignedToId: assignedToId ? Number(assignedToId) : null }),
-      ...(ownedById !== undefined && { ownedById: ownedById ? Number(ownedById) : null }),
-      lastModifiedBy: userId,
-      version: { increment: 1 },
-    },
-    include: {
-      steps: {
-        orderBy: { stepNumber: 'asc' },
+  // Capture current state for version snapshot (before update)
+  const versionSnapshot = {
+    testCaseId: existing.id,
+    caseVersion: existing.version,
+    name: existing.name,
+    description: existing.description,
+    type: existing.type,
+    priority: existing.priority,
+    severity: existing.severity,
+    status: existing.status,
+    automationStatus: existing.automationStatus,
+    preconditions: existing.preconditions,
+    postconditions: null, // Not yet in TestCase schema
+    expectedResult: null, // Not on test case level
+    tags: existing.tags,
+    steps: existing.steps.map(step => ({
+      action: step.action,
+      expectedResult: step.expectedResult,
+      notes: step.notes,
+    })),
+    changeNote: changeNote || null,
+    changedBy: userId,
+    changedAt: new Date(),
+  };
+
+  // Update test case with version increment and create version snapshot in transaction
+  const [updated] = await prisma.$transaction([
+    prisma.testCase.update({
+      where: { id: testCaseId },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(preconditions !== undefined && { preconditions }),
+        ...(testData !== undefined && { testData }),
+        ...(environment !== undefined && { environment }),
+        ...(type && { type }),
+        ...(priority && { priority }),
+        ...(severity && { severity }),
+        ...(status && { status }),
+        ...(estimatedDurationMinutes !== undefined && { estimatedDurationMinutes }),
+        ...(moduleArea !== undefined && { moduleArea }),
+        ...(tags !== undefined && { tags }),
+        ...(automationStatus && { automationStatus }),
+        ...(assignedToId !== undefined && { assignedToId: assignedToId ? Number(assignedToId) : null }),
+        ...(ownedById !== undefined && { ownedById: ownedById ? Number(ownedById) : null }),
+        lastModifiedBy: userId,
+        version: { increment: 1 },
       },
-      assignedTo: { select: { id: true, name: true } },
-      owner: { select: { id: true, name: true } },
-    },
-  });
+      include: {
+        steps: {
+          orderBy: { stepNumber: 'asc' },
+        },
+        assignedTo: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.testCaseVersion.create({
+      data: versionSnapshot,
+    }),
+  ]);
 
   // Update steps if provided
   if (steps && Array.isArray(steps)) {
-    // Delete existing steps
-    await prisma.testStep.deleteMany({
+    const existingSteps = await prisma.testStep.findMany({
       where: { testCaseId },
+      select: {
+        id: true,
+        stepNumber: true,
+        _count: { select: { executionSteps: true } },
+      },
+      orderBy: { stepNumber: 'asc' },
     });
 
-    // Create new steps
-    await Promise.all(
-      steps.map((step, index) =>
-        prisma.testStep.create({
-          data: {
-            testCaseId,
-            stepNumber: index + 1,
-            action: step.action,
-            expectedResult: step.expectedResult,
-            notes: step.notes || null,
-          },
+    const normalizedSteps = steps.map((step) => ({
+      action: step.action,
+      expectedResult: step.expectedResult,
+      notes: step.notes || null,
+    }));
+
+    const operations = [];
+    normalizedSteps.forEach((step, index) => {
+      const existingStep = existingSteps[index];
+      if (existingStep) {
+        operations.push(
+          prisma.testStep.update({
+            where: { id: existingStep.id },
+            data: {
+              stepNumber: index + 1,
+              action: step.action,
+              expectedResult: step.expectedResult,
+              notes: step.notes,
+            },
+          })
+        );
+      } else {
+        operations.push(
+          prisma.testStep.create({
+            data: {
+              testCaseId,
+              stepNumber: index + 1,
+              action: step.action,
+              expectedResult: step.expectedResult,
+              notes: step.notes,
+            },
+          })
+        );
+      }
+    });
+
+    const extraSteps = existingSteps.slice(normalizedSteps.length);
+    const lockedSteps = extraSteps.filter((step) => step._count.executionSteps > 0);
+    if (lockedSteps.length > 0) {
+      throw new Error('Cannot remove steps that have execution history.');
+    }
+
+    if (extraSteps.length > 0) {
+      operations.push(
+        prisma.testStep.deleteMany({
+          where: { id: { in: extraSteps.map((step) => step.id) } },
         })
-      )
-    );
+      );
+    }
+
+    if (operations.length > 0) {
+      await prisma.$transaction(operations);
+    }
+
+    updated = await prisma.testCase.findUnique({
+      where: { id: testCaseId },
+      include: {
+        steps: {
+          orderBy: { stepNumber: 'asc' },
+        },
+        assignedTo: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true } },
+      },
+    });
   }
 
-  // Audit log
+  // Audit log for test case update
   await logAuditAction(userId, 'TESTCASE_EDITED', {
     resourceType: 'TESTCASE',
     resourceId: testCaseId,
@@ -223,12 +311,31 @@ export async function updateTestCase(testCaseId, updates, userId, auditContext =
       name: existing.name,
       type: existing.type,
       priority: existing.priority,
+      severity: existing.severity,
+      status: existing.status,
+      automationStatus: existing.automationStatus,
+      description: existing.description,
     }),
     newValues: JSON.stringify({
       name: updated.name,
       type: updated.type,
       priority: updated.priority,
+      severity: updated.severity,
+      status: updated.status,
+      automationStatus: updated.automationStatus,
+      description: updated.description,
     }),
+    ...auditContext,
+  });
+
+  // Audit log for version creation
+  await logAuditAction(userId, 'TESTCASE_VERSION_CREATED', {
+    resourceType: 'TESTCASE_VERSION',
+    resourceId: testCaseId,
+    resourceName: updated.name,
+    projectId: updated.projectId,
+    description: `Created version ${existing.version} snapshot${changeNote ? ': ' + changeNote : ''}`,
+    metadata: { version: existing.version, changeNote },
     ...auditContext,
   });
 

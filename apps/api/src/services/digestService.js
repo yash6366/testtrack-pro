@@ -218,7 +218,9 @@ function groupNotificationsByType(notifications) {
     }
   });
 
-  return Object.filter((type, items) => items.length > 0, grouped);
+  return Object.fromEntries(
+    Object.entries(grouped).filter(([type, items]) => items.length > 0)
+  );
 }
 
 /**

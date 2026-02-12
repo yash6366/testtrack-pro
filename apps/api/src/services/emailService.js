@@ -44,6 +44,132 @@ export function getVerificationTokenExpiry() {
   expiry.setHours(expiry.getHours() + 24); // 24 hours from now
   return expiry;
 }
+
+// ============================================
+// PASSWORD RESET & ACCOUNT SECURITY EMAILS
+// ============================================
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(email, name, resetToken) {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+
+  try {
+    const response = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to: email,
+      subject: 'Reset Your Password - TestTrack Pro',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1f2937;">Password Reset Request</h2>
+          <p>Hello ${name},</p>
+          <p>We received a request to reset your password for your TestTrack Pro account.</p>
+          <p>Click the button below to reset your password:</p>
+          <p style="margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Reset Password</a>
+          </p>
+          <p>Or copy and paste this link into your browser:</p>
+          <p style="background-color: #f3f4f6; padding: 10px; border-radius: 4px; word-break: break-all;">${resetUrl}</p>
+          <p style="color: #ef4444; font-weight: 600; margin-top: 20px;">⚠️ This link will expire in 1 hour.</p>
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            If you didn't request this password reset, please ignore this email or contact support if you have concerns.
+          </p>
+          <p style="color: #666; font-size: 12px; margin-top: 20px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+            For security reasons, never share this link with anyone.
+          </p>
+        </div>
+      `,
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Failed to send password reset email:', error);
+    throw new Error('Failed to send password reset email');
+  }
+}
+
+/**
+ * Send account locked notification email
+ */
+export async function sendAccountLockedEmail(email, name, lockoutDurationMinutes) {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/forgot-password`;
+
+  try {
+    const response = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to: email,
+      subject: '🔒 Account Locked - TestTrack Pro',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #dc2626;">🔒 Account Locked</h2>
+          <p>Hello ${name},</p>
+          <p>Your TestTrack Pro account has been temporarily locked due to multiple failed login attempts.</p>
+          <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #991b1b;"><strong>Security Notice:</strong></p>
+            <p style="margin: 10px 0 0 0; color: #991b1b;">Your account will be automatically unlocked in ${lockoutDurationMinutes} minutes.</p>
+          </div>
+          <p><strong>What you can do:</strong></p>
+          <ul style="color: #374151;">
+            <li>Wait ${lockoutDurationMinutes} minutes for automatic unlock</li>
+            <li>Reset your password immediately using the button below</li>
+            <li>Contact your administrator if you didn't attempt to login</li>
+          </ul>
+          <p style="margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Reset Password Now</a>
+          </p>
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            If you suspect unauthorized access to your account, please contact your administrator immediately.
+          </p>
+        </div>
+      `,
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Failed to send account locked email:', error);
+    throw new Error('Failed to send account locked email');
+  }
+}
+
+/**
+ * Send password changed confirmation email
+ */
+export async function sendPasswordChangedEmail(email, name) {
+  const supportUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/support`;
+
+  try {
+    const response = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to: email,
+      subject: '✅ Password Changed Successfully - TestTrack Pro',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #059669;">✅ Password Changed Successfully</h2>
+          <p>Hello ${name},</p>
+          <p>This email confirms that your password for TestTrack Pro was successfully changed.</p>
+          <div style="background-color: #f0fdf4; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #065f46;"><strong>Change Details:</strong></p>
+            <p style="margin: 10px 0 0 0; color: #065f46;">Date: ${new Date().toLocaleString()}</p>
+          </div>
+          <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #92400e;"><strong>⚠️ Didn't change your password?</strong></p>
+            <p style="margin: 10px 0 0 0; color: #92400e;">If you did not make this change, your account may be compromised. Please contact your administrator immediately.</p>
+          </div>
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            You can now use your new password to login to TestTrack Pro.
+          </p>
+        </div>
+      `,
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Failed to send password changed email:', error);
+    throw new Error('Failed to send password changed email');
+  }
+}
+
 // ============================================
 // NOTIFICATION EMAILS
 // ============================================

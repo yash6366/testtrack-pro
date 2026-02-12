@@ -49,9 +49,8 @@ export default function TestRunCreation() {
           `/api/projects/${projectId}/test-cases`
         );
 
-        if (response.testCases) {
-          setTestCases(response.testCases);
-        }
+        const cases = response?.data || response?.testCases || [];
+        setTestCases(Array.isArray(cases) ? cases : []);
       } catch (err) {
         console.error('Error loading test cases:', err);
         setError('Failed to load test cases. Please go back and try again.');
@@ -130,7 +129,7 @@ export default function TestRunCreation() {
       } else {
         // Fallback to test run details
         navigate(
-          `/test-runs/${response.testRun.id}`
+          `/test-run/${response.testRun.id}`
         );
       }
     } catch (err) {

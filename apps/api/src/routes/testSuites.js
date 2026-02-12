@@ -391,7 +391,7 @@ export async function testSuiteRoutes(fastify) {
   // Execute test suite
   fastify.post(
     '/api/test-suites/:suiteId/execute',
-    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER']), requireNotAdmin()] },
+    { preHandler: [requireAuth, requireRoles(['TESTER']), requireNotAdmin()] },
     async (request, reply) => {
       try {
         const { suiteId } = request.params;

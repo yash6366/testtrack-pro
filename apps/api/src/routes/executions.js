@@ -8,8 +8,8 @@ const prisma = getPrismaClient();
 export async function executionRoutes(fastify) {
   const { requireAuth, requireRoles } = createAuthGuards(fastify);
 
-  // CRITICAL: Only TESTER can execute tests - ADMIN is forbidden
-  const testerOrDeveloperOnly = requireRoles(['TESTER', 'DEVELOPER']);
+  // CRITICAL: Only TESTER can execute tests - ADMIN and DEVELOPER are forbidden
+  const testerOnly = requireRoles(['TESTER']);
   const anyRole = requireRoles(['TESTER', 'DEVELOPER', 'ADMIN']);
 
   // Get execution with all steps (read-only, all roles)
@@ -58,7 +58,7 @@ export async function executionRoutes(fastify) {
   // Re-execute a previously executed test case
   fastify.post(
     '/api/test-executions/:executionId/re-execute',
-    { preHandler: [requireAuth, testerOrDeveloperOnly, requireNotAdmin()] },
+    { preHandler: [requireAuth, testerOnly, requireNotAdmin()] },
     async (request, reply) => {
       const { executionId } = request.params;
       const userId = request.user.id;
@@ -571,6 +571,151 @@ export async function executionRoutes(fastify) {
         reply.send(comparison);
       } catch (error) {
         console.error('Error comparing executions:', error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // Get execution trend/history for a test case
+  fastify.get(
+    '/api/test-cases/:testCaseId/execution-trend',
+    { preHandler: [requireAuth, anyRole] },
+    async (request, reply) => {
+      const { testCaseId } = request.params;
+      const { limit = 50 } = request.query;
+
+      try {
+        const executions = await prisma.testExecution.findMany({
+          where: {
+            testCaseId: Number(testCaseId),
+          },
+          include: {
+            executor: {
+              select: { id: true, name: true, email: true },
+            },
+            testRun: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: [{ executedAt: 'desc' }],
+          take: Number(limit),
+        });
+
+        // Calculate trend metrics
+        const totalExecutions = executions.length;
+        const passedCount = executions.filter((e) => e.status === 'PASSED').length;
+        const failedCount = executions.filter((e) => e.status === 'FAILED').length;
+        const blockedCount = executions.filter((e) => e.status === 'BLOCKED').length;
+        const skippedCount = executions.filter((e) => e.status === 'SKIPPED').length;
+
+        // Calculate flakiness (pass/fail alternations)
+        let flakiness = 0;
+        for (let i = 1; i < executions.length; i++) {
+          if (
+            (executions[i - 1].status === 'PASSED' && executions[i].status === 'FAILED') ||
+            (executions[i - 1].status === 'FAILED' && executions[i].status === 'PASSED')
+          ) {
+            flakiness++;
+          }
+        }
+
+        const flakinessScore = totalExecutions > 1 ? (flakiness / (totalExecutions - 1)) * 100 : 0;
+
+        // Average duration
+        const validDurations = executions.filter((e) => e.durationSeconds).map((e) => e.durationSeconds);
+        const avgDuration =
+          validDurations.length > 0
+            ? validDurations.reduce((sum, d) => sum + d, 0) / validDurations.length
+            : 0;
+
+        reply.send({
+          executions: executions.reverse(), // Chronological order (oldest first)
+          metrics: {
+            totalExecutions,
+            passedCount,
+            failedCount,
+            blockedCount,
+            skippedCount,
+            passRate: totalExecutions > 0 ? (passedCount / totalExecutions) * 100 : 0,
+            flakinessScore: Math.round(flakinessScore * 10) / 10,
+            avgDurationSeconds: Math.round(avgDuration * 10) / 10,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching execution trend:', error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // Compare multiple executions side-by-side
+  fastify.get(
+    '/api/executions/compare',
+    { preHandler: [requireAuth, anyRole] },
+    async (request, reply) => {
+      const { ids } = request.query;
+
+      if (!ids || !Array.isArray(ids) || ids.length < 2) {
+        return reply.code(400).send({ error: 'At least 2 execution IDs are required' });
+      }
+
+      try {
+        const executions = await Promise.all(
+          ids.map((id) =>
+            prisma.testExecution.findUnique({
+              where: { id: Number(id) },
+              include: {
+                testCase: {
+                  select: { id: true, name: true },
+                },
+                executor: {
+                  select: { id: true, name: true, email: true },
+                },
+                steps: {
+                  include: {
+                    testStep: true,
+                    evidence: true,
+                  },
+                  orderBy: { id: 'asc' },
+                },
+                evidence: true,
+              },
+            })
+          )
+        );
+
+        // Check if all executions were found
+        if (executions.some((e) => !e)) {
+          return reply.code(404).send({ error: 'One or more executions not found' });
+        }
+
+        // Build comparison
+        const comparison = {
+          executions: executions.map((e) => ({
+            id: e.id,
+            status: e.status,
+            executedAt: e.executedAt,
+            durationSeconds: e.durationSeconds,
+            executor: e.executor,
+            testCase: e.testCase,
+            stepResults: e.steps.map((s) => ({
+              stepNumber: s.testStep.stepNumber,
+              action: s.testStep.action,
+              status: s.status,
+              actualResult: s.actualResult,
+              evidenceCount: s.evidence.length,
+            })),
+          })),
+          summary: {
+            allPassed: executions.every((e) => e.status === 'PASSED'),
+            allFailed: executions.every((e) => e.status === 'FAILED'),
+            hasVariation: new Set(executions.map((e) => e.status)).size > 1,
+          },
+        };
+
+        reply.send(comparison);
+      } catch (error) {
+        console.error('Error comparing multiple executions:', error);
         reply.code(500).send({ error: error.message });
       }
     }

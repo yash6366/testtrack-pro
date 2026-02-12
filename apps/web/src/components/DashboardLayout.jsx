@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import ThemeToggle from '@/components/ThemeToggle';
+import ProjectSelector from '@/components/ProjectSelector';
 
 export default function DashboardLayout({
   user,
@@ -9,6 +10,7 @@ export default function DashboardLayout({
   onLogout,
   children,
 }) {
+  const isTester = String(user?.role || '').toUpperCase() === 'TESTER';
   const navLinks = [
     { to: '/dashboard', label: 'Dashboard' },
     { to: '/test-suites', label: 'Test Suites' },
@@ -41,6 +43,7 @@ export default function DashboardLayout({
             ))}
           </div>
           <div className="flex items-center gap-4">
+            {(isTester) && <ProjectSelector />}
             <div className="text-right">
               <p className="text-xs text-[var(--muted)]">Welcome back</p>
               <p className="text-sm font-semibold">{user.name}</p>

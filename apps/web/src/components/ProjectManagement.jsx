@@ -41,6 +41,7 @@ export default function ProjectManagement() {
   });
 
   const [allUsers, setAllUsers] = useState([]);
+  const [deallocatingUserId, setDeallocatingUserId] = useState(null);
 
   const moduleOptions = [
     'UI',
@@ -166,26 +167,58 @@ export default function ProjectManagement() {
     }
 
     try {
-      await apiClient.post(`/api/admin/projects/${projectId}/allocate-user`, userAllocationForm);
+      const result = await apiClient.post(`/api/admin/projects/${projectId}/allocate-user`, userAllocationForm);
       setUserAllocationForm({ userId: '', role: 'QA_ENGINEER' });
       await loadProjectDetails(projectId);
-      alert('User allocated successfully');
+      
+      // Get the user name from the result
+      const userName = result?.user?.name || 'User';
+      alert(`${userName} has been allocated to the project successfully`);
     } catch (error) {
       console.error('Error allocating user:', error);
-      alert(error.message || 'Failed to allocate user');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to allocate user';
+      alert(`Error: ${errorMessage}`);
     }
   }
 
   async function handleDeallocateUser(projectId, userId) {
     if (!confirm('Remove this user from the project?')) return;
 
+    // Prevent double-clicks
+    if (deallocatingUserId === userId) return;
+    
+    setDeallocatingUserId(userId);
+
     try {
+      // Optimistically update UI
+      setSelectedProject(prev =>  {
+        if (!prev || prev.id !== projectId) return prev;
+        return {
+          ...prev,
+          projectUserAllocations: prev.projectUserAllocations?.filter(
+            a => a.user.id !== userId
+          ) || [],
+        };
+      });
+
       await apiClient.post(`/api/admin/projects/${projectId}/deallocate-user/${userId}`, {});
       await loadProjectDetails(projectId);
       alert('User removed successfully');
     } catch (error) {
       console.error('Error deallocating user:', error);
-      alert(error.message || 'Failed to remove user');
+      
+      // Refresh on error to show correct state
+      await loadProjectDetails(projectId);
+      
+      const errorMsg = error.message || 'Failed to remove user';
+      // More user-friendly error message
+      if (errorMsg.includes('already been removed')) {
+        alert('This user has already been removed from the project');
+      } else {
+        alert(errorMsg);
+      }
+    } finally {
+      setDeallocatingUserId(null);
     }
   }
 
@@ -605,14 +638,16 @@ export default function ProjectManagement() {
                     <div className="space-y-2">
                       {selectedProject.projectUserAllocations && selectedProject.projectUserAllocations.length > 0 ? (
                         selectedProject.projectUserAllocations.map(allocation => (
-                          <div key={allocation.id} className="flex justify-between items-center p-3 bg-[var(--bg)] rounded border border-[var(--border)]">
+                          <div key={allocation.user.id} className="flex justify-between items-center p-3 bg-[var(--bg)] rounded border border-[var(--border)]">
                             <div>
                               <p className="font-medium text-sm">{allocation.user.name}</p>
                               <p className="text-xs text-[var(--muted)]">{allocation.user.email} • {allocation.role.replace(/_/g, ' ')}</p>
                             </div>
                             <button
                               onClick={() => handleDeallocateUser(project.id, allocation.user.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
+                              disabled={deallocatingUserId === allocation.user.id}
+                              className="text-red-500 hover:text-red-700 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Remove user from project"
                             >
                               <Trash2 size={16} />
                             </button>

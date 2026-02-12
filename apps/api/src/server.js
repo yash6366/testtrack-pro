@@ -3,6 +3,10 @@ import helmet from '@fastify/helmet';
 import { setupCors } from './plugins/cors.js';
 import { setupJwt } from './plugins/jwt.js';
 import { setupHelmet } from './plugins/helmet.js';
+import { setupSwagger } from './plugins/swagger.js';
+import { rateLimitPlugin } from './plugins/rateLimit.js';
+import { csrfProtectionPlugin } from './plugins/csrfProtection.js';
+import { initializeLogger, createRequestLoggerMiddleware, logInfo, logError } from './lib/logger.js';
 import { setupSocket, initializeRedis } from './lib/socket.js';
 import { initializeNotificationEmitter } from './services/notificationEmitter.js';
 import { initializeCronJobs } from './services/cronService.js';
@@ -21,16 +25,32 @@ import { testSuiteRoutes } from './routes/testSuites.js';
 import analyticsRoutes from './routes/analytics.js';
 import { notificationRoutes } from './routes/notification.js';
 import { searchRoutes } from './routes/search.js';
+import webhookRoutes from './routes/webhooks.js';
 
 const fastify = Fastify({ logger: true });
 
-// Initialize Redis for pub/sub
-initializeRedis();
+// Initialize structured logging
+initializeLogger(fastify.log);
 
-// Register plugins
+// Log server startup
+logInfo('Starting TestTrack Pro API server');
+
+// Register request logging middleware
+await fastify.register(async (fastify) => {
+  fastify.addHook('onRequest', await createRequestLoggerMiddleware());
+});
 await setupCors(fastify);
 await setupJwt(fastify);
 await setupHelmet(fastify);
+await fastify.register(rateLimitPlugin);
+await fastify.register(csrfProtectionPlugin);
+
+// Register Swagger (disabled in production)
+const isProduction = process.env.NODE_ENV === 'production';
+const enableSwagger = process.env.ENABLE_SWAGGER === 'true' || !isProduction;
+if (enableSwagger) {
+  await setupSwagger(fastify);
+}
 
 // Health check
 fastify.get('/health', async () => {
@@ -52,6 +72,7 @@ fastify.register(testSuiteRoutes);
 fastify.register(analyticsRoutes);
 fastify.register(notificationRoutes);
 fastify.register(searchRoutes);
+fastify.register(webhookRoutes);
 
 // Start server
 const start = async () => {

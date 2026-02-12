@@ -1,11 +1,25 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { getPrismaClient } from '../lib/prisma.js';
 import { SignupSchema, LoginSchema } from '../schemas/auth.js';
-import { sendVerificationEmail, generateVerificationToken, getVerificationTokenExpiry } from './emailService.js';
+import { 
+  sendVerificationEmail, 
+  generateVerificationToken, 
+  getVerificationTokenExpiry,
+  sendPasswordResetEmail,
+  sendAccountLockedEmail,
+  sendPasswordChangedEmail
+} from './emailService.js';
 import { ensureUserInUniversalChannel } from './channelService.js';
 
 const prisma = getPrismaClient();
 const MAIN_ADMIN_EMAIL = 'admin@gmail.com';
+
+// Account Security Constants
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MINUTES = 30;
+const PASSWORD_HISTORY_COUNT = 5;
+const PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1;
 
 function normalizeRole(role) {
   return typeof role === 'string' ? role.trim().toUpperCase() : role;
@@ -96,6 +110,29 @@ export async function login(fastify, { email, password }) {
     });
   }
 
+  if (!user.isActive) {
+    throw new Error('Account is deactivated. Please contact an administrator.');
+  }
+
+  // Check if account is locked
+  if (user.lockedUntil && new Date() < user.lockedUntil) {
+    const remainingMinutes = Math.ceil((user.lockedUntil - new Date()) / 60000);
+    throw new Error(`Account is locked due to too many failed login attempts. Please try again in ${remainingMinutes} minute(s) or reset your password.`);
+  }
+
+  // If lock period has passed, reset failed attempts
+  if (user.lockedUntil && new Date() >= user.lockedUntil) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lockedUntil: null,
+        failedLoginAttempts: 0,
+      },
+    });
+    user.lockedUntil = null;
+    user.failedLoginAttempts = 0;
+  }
+
   // Check if user is verified
   if (!user.isVerified) {
     throw new Error('Please verify your email before logging in');
@@ -105,8 +142,48 @@ export async function login(fastify, { email, password }) {
   const isPasswordValid = await bcrypt.compare(validated.password, user.password);
 
   if (!isPasswordValid) {
-    throw new Error('Invalid credentials');
+    // Increment failed login attempts
+    const newFailedAttempts = (user.failedLoginAttempts || 0) + 1;
+    const updateData = {
+      failedLoginAttempts: newFailedAttempts,
+    };
+
+    // Lock account if max attempts reached
+    if (newFailedAttempts >= MAX_LOGIN_ATTEMPTS) {
+      const lockoutTime = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60000);
+      updateData.lockedUntil = lockoutTime;
+      
+      await prisma.user.update({
+        where: { id: user.id },
+        data: updateData,
+      });
+
+      // Send account locked email
+      await sendAccountLockedEmail(user.email, user.name, LOCKOUT_DURATION_MINUTES).catch(err => {
+        console.error('Failed to send account locked email:', err);
+      });
+
+      throw new Error(`Account locked due to ${MAX_LOGIN_ATTEMPTS} failed login attempts. Please try again in ${LOCKOUT_DURATION_MINUTES} minutes or reset your password.`);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    const remainingAttempts = MAX_LOGIN_ATTEMPTS - newFailedAttempts;
+    throw new Error(`Invalid credentials. ${remainingAttempts} attempt(s) remaining before account lockout.`);
   }
+
+  // Successful login - reset failed attempts and update last login
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date(),
+    },
+  });
 
   // Generate token
   const token = fastify.jwt.sign(
@@ -206,5 +283,202 @@ export async function verifyEmail(verificationToken) {
       isVerified: updatedUser.isVerified,
     },
     message: 'Email verified successfully',
+  };
+}
+
+// Password Reset Functions
+export async function requestPasswordReset(email) {
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  // Don't reveal if user exists for security
+  if (!user) {
+    return {
+      message: 'If an account exists with that email, a password reset link has been sent.',
+    };
+  }
+
+  // Generate reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  const expiryDate = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+
+  // Save token to database
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordResetToken: hashedToken,
+      passwordResetTokenExpiry: expiryDate,
+    },
+  });
+
+  // Send reset email
+  await sendPasswordResetEmail(user.email, user.name, resetToken).catch(err => {
+    console.error('Failed to send password reset email:', err);
+  });
+
+  return {
+    message: 'If an account exists with that email, a password reset link has been sent.',
+  };
+}
+
+export async function resetPassword(token, newPassword) {
+  // Hash the token to compare with database
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  // Find user with this token
+  const user = await prisma.user.findFirst({
+    where: {
+      passwordResetToken: hashedToken,
+      passwordResetTokenExpiry: {
+        gt: new Date(),
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error('Invalid or expired reset token');
+  }
+
+  // Validate password strength
+  validatePasswordStrength(newPassword);
+
+  // Check password history
+  await validatePasswordHistory(user, newPassword);
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // Update password history (keep last 5)
+  const updatedHistory = [hashedPassword, ...user.passwordHistory].slice(0, PASSWORD_HISTORY_COUNT);
+
+  // Update user
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      passwordResetToken: null,
+      passwordResetTokenExpiry: null,
+      passwordHistory: updatedHistory,
+      lastPasswordChange: new Date(),
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
+  });
+
+  // Send confirmation email
+  await sendPasswordChangedEmail(user.email, user.name).catch(err => {
+    console.error('Failed to send password changed email:', err);
+  });
+
+  return {
+    message: 'Password reset successful. You can now login with your new password.',
+  };
+}
+
+// Password Validation Functions
+function validatePasswordStrength(password) {
+  if (password.length < 8) {
+    throw new Error('Password must be at least 8 characters long');
+  }
+  if (!/[a-z]/.test(password)) {
+    throw new Error('Password must contain at least one lowercase letter');
+  }
+  if (!/[A-Z]/.test(password)) {
+    throw new Error('Password must contain at least one uppercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    throw new Error('Password must contain at least one number');
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    throw new Error('Password must contain at least one special character');
+  }
+}
+
+async function validatePasswordHistory(user, newPassword) {
+  // Check against previous passwords
+  for (const oldHash of user.passwordHistory || []) {
+    const isMatch = await bcrypt.compare(newPassword, oldHash);
+    if (isMatch) {
+      throw new Error(`Password cannot be the same as your last ${PASSWORD_HISTORY_COUNT} passwords`);
+    }
+  }
+}
+
+export async function changePassword(userId, currentPassword, newPassword) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Verify current password
+  const isValid = await bcrypt.compare(currentPassword, user.password);
+  if (!isValid) {
+    throw new Error('Current password is incorrect');
+  }
+
+  // Validate new password strength
+  validatePasswordStrength(newPassword);
+
+  // Check password history
+  await validatePasswordHistory(user, newPassword);
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // Update password history
+  const updatedHistory = [hashedPassword, ...user.passwordHistory].slice(0, PASSWORD_HISTORY_COUNT);
+
+  // Update user
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password: hashedPassword,
+      passwordHistory: updatedHistory,
+      lastPasswordChange: new Date(),
+    },
+  });
+
+  // Send confirmation email
+  await sendPasswordChangedEmail(user.email, user.name).catch(err => {
+    console.error('Failed to send password changed email:', err);
+  });
+
+  return {
+    message: 'Password changed successfully',
+  };
+}
+
+// Admin Functions
+export async function unlockAccount(adminId, targetUserId) {
+  // Verify admin permissions (caller should check this, but double-check)
+  const admin = await prisma.user.findUnique({
+    where: { id: adminId },
+  });
+
+  if (!admin || admin.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+
+  // Unlock the account
+  const user = await prisma.user.update({
+    where: { id: targetUserId },
+    data: {
+      lockedUntil: null,
+      failedLoginAttempts: 0,
+    },
+  });
+
+  return {
+    message: `Account for ${user.email} has been unlocked`,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    },
   };
 }

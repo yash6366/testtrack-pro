@@ -51,7 +51,11 @@ export function setupSocket(fastifyServer) {
 
   const io = new Server(fastifyServer.server, {
     cors: {
-      origin: process.env.FRONTEND_URL || "http://localhost:5173",
+      origin: [
+        process.env.FRONTEND_URL,
+        "http://localhost:5173",
+        "http://localhost:5174"
+      ].filter(Boolean),
       credentials: true,
     },
     transports: ["websocket", "polling"],
@@ -102,6 +106,46 @@ export function setupSocket(fastifyServer) {
 
   function isAllowedPublicRoom(room) {
     return ALLOWED_PUBLIC_PREFIXES.some((prefix) => room.startsWith(prefix));
+  }
+
+  async function authorizeBugOrExecutionRoom(room, userId) {
+    // Extract projectId from room name (format: bug-{projectId}-{bugId} or execution-{projectId}-{executionId})
+    const bugMatch = /^bug-(\d+)-/.exec(room);
+    const executionMatch = /^execution-(\d+)-/.exec(room);
+    
+    if (bugMatch) {
+      const projectId = Number(bugMatch[1]);
+      // Verify user is assigned to this project
+      const membership = await prisma.projectUserAllocation.findFirst({
+        where: {
+          projectId,
+          userId,
+          isActive: true,
+        },
+      });
+      if (!membership) {
+        throw new Error('Access denied: Not a member of this project');
+      }
+      return true;
+    }
+    
+    if (executionMatch) {
+      const projectId = Number(executionMatch[1]);
+      // Verify user is assigned to this project
+      const membership = await prisma.projectUserAllocation.findFirst({
+        where: {
+          projectId,
+          userId,
+          isActive: true,
+        },
+      });
+      if (!membership) {
+        throw new Error('Access denied: Not a member of this project');
+      }
+      return true;
+    }
+    
+    return false;
   }
 
   async function resolveUser(socket) {
@@ -185,16 +229,19 @@ export function setupSocket(fastifyServer) {
         room = parsed.room;
       } else if (parsed.type === "user") {
         if (parsed.userId !== userId) {
-          console.warn(`⚠ User room join denied for user ${userId} in ${room}`);
+          logger.warn({ userId, room }, 'User room join denied');
           return;
         }
         room = parsed.room;
       } else {
-        if (!isAllowedPublicRoom(parsed.room)) {
-          console.warn(`⚠ Unrecognized room denied for user ${userId} in ${room}`);
+        // Authorize bug and execution rooms by project membership
+        try {
+          await authorizeBugOrExecutionRoom(parsed.room, userId);
+          room = parsed.room;
+        } catch (error) {
+          logger.warn({ userId, room, err: error }, 'Room authorization failed');
           return;
         }
-        room = parsed.room;
       }
 
       socket.join(room);
@@ -204,7 +251,7 @@ export function setupSocket(fastifyServer) {
         room,
         timestamp: new Date().toISOString(),
       });
-      console.log(`  ↳ ${userId} joined room: ${room}`);
+      logger.debug({ userId, room }, 'User joined room');
     });
 
     // Handle room exits
@@ -216,14 +263,14 @@ export function setupSocket(fastifyServer) {
           room,
           timestamp: new Date().toISOString(),
         });
-        console.log(`  ↳ ${userId} left room: ${room}`);
+        logger.debug({ userId, room }, 'User left room');
       }
     });
 
     // Handle messages with role context
     socket.on("message", async (data) => {
       if (!data?.room || typeof data.room !== "string") {
-        console.warn("⚠ Message received without room:", data);
+        logger.warn({ data }, 'Message received without room');
         return;
       }
 
@@ -247,7 +294,7 @@ export function setupSocket(fastifyServer) {
         try {
           await ensureMember(userId, channelId);
         } catch (error) {
-          console.warn(`⚠ Message denied for user ${userId} in ${data.room}`);
+          logger.warn({ userId, room: data.room }, 'Message denied for user');
           return;
         }
 
@@ -278,20 +325,20 @@ export function setupSocket(fastifyServer) {
         };
 
         io.to(data.room).emit("message", messagePayload);
-        console.log(`  ↳ ${userId} message in ${data.room}: ${trimmed.substring(0, 30)}...`);
+        logger.debug({ userId, room: data.room }, 'Message sent to room');
         return;
       }
 
       if (parsed.type === "role") {
         if (!parsed.role || parsed.role !== normalizedRole) {
-          console.warn(`⚠ Role room message denied for user ${userId} in ${data.room}`);
+          logger.warn({ userId, room: data.room }, 'Role room message denied');
           return;
         }
       }
 
       if (parsed.type === "user") {
         if (parsed.userId !== userId) {
-          console.warn(`⚠ User room message denied for user ${userId} in ${data.room}`);
+          logger.warn({ userId, room: data.room }, 'User room message denied');
           return;
         }
       }
@@ -307,9 +354,13 @@ export function setupSocket(fastifyServer) {
 
       const targetRoom = parsed.type === "other" ? parsed.room : parsed.room;
 
-      if (parsed.type === "other" && !isAllowedPublicRoom(targetRoom)) {
-        console.warn(`⚠ Unrecognized room message denied for user ${userId} in ${data.room}`);
-        return;
+      if (parsed.type === "other") {
+        try {
+          await authorizeBugOrExecutionRoom(targetRoom, userId);
+        } catch (error) {
+          logger.warn({ userId, room: data.room, err: error }, 'Room message denied');
+          return;
+        }
       }
 
       const messagePayload = {
@@ -329,7 +380,7 @@ export function setupSocket(fastifyServer) {
         io.to("role:ADMIN").emit("announcement", messagePayload);
       }
 
-      console.log(`  ↳ ${userId} message in ${targetRoom}: ${trimmed.substring(0, 30)}...`);
+      logger.debug({ userId, room: targetRoom }, 'Message sent');
     });
 
     // Handle direct notifications (e.g., re-test requests)
@@ -344,7 +395,7 @@ export function setupSocket(fastifyServer) {
         return;
       }
 
-      io.to(`user:${targetUserId}`).emit("notification", {
+      io.to(`user:${targetUserId}`).emit("notification:new", {
         id: `${Date.now()}-${Math.random()}`,
         fromUserId: userId,
         fromUserRole: userRole,
@@ -353,7 +404,7 @@ export function setupSocket(fastifyServer) {
         metadata: data.metadata || {},
         timestamp: new Date().toISOString(),
       });
-      console.log(`  ↳ Notification sent to user:${targetUserId}`);
+      logger.debug({ fromUserId: userId, toUserId: targetUserId }, 'Notification sent');
     });
 
     // Handle typing indicators
@@ -381,7 +432,9 @@ export function setupSocket(fastifyServer) {
           return;
         }
       } else if (parsed.type === "other") {
-        if (!isAllowedPublicRoom(parsed.room)) {
+        try {
+          await authorizeBugOrExecutionRoom(parsed.room, userId);
+        } catch (error) {
           return;
         }
       }
@@ -417,12 +470,14 @@ export function setupSocket(fastifyServer) {
           return;
         }
       } else if (parsed.type === "other") {
-        if (!isAllowedPublicRoom(parsed.room)) {
+        try {
+          await authorizeBugOrExecutionRoom(parsed.room, userId);
+        } catch (error) {
           return;
         }
       }
 
-      socket.to(parsed.room).emit("userStoppedTyping", {
+      socket.to(parsed.room).emit("stopTyping", {
         userId,
         room: parsed.room,
       });
@@ -430,7 +485,7 @@ export function setupSocket(fastifyServer) {
 
     // Handle disconnection
     socket.on("disconnect", () => {
-      console.log(`✗ User disconnected: ${userId} - Socket: ${socket.id}`);
+      logger.info({ userId, socketId: socket.id }, 'User disconnected from Socket.IO');
       
       // Emit leave event to all joined rooms
       Array.from(socket.rooms).forEach((room) => {
