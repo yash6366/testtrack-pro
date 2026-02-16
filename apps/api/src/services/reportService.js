@@ -155,7 +155,7 @@ export async function generateTesterPerformanceReport(userId, options = {}) {
   }
 
   const where = {
-    executedBy: userId,
+    userId,
     ...(Object.keys(dateFilter).length > 0 && {
       startedAt: dateFilter,
     }),
@@ -182,9 +182,9 @@ export async function generateTesterPerformanceReport(userId, options = {}) {
     prisma.testExecution.aggregate({
       where: {
         ...where,
-        durationSeconds: { not: null },
+        actualDurationSeconds: { not: null },
       },
-      _avg: { durationSeconds: true },
+      _avg: { actualDurationSeconds: true },
     }),
 
     // Test cases created
@@ -198,9 +198,9 @@ export async function generateTesterPerformanceReport(userId, options = {}) {
     }),
 
     // Bugs reported
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
-        reporterId: userId,
+        reportedBy: userId,
         ...(Object.keys(dateFilter).length > 0 && {
           createdAt: dateFilter,
         }),
@@ -223,7 +223,7 @@ export async function generateTesterPerformanceReport(userId, options = {}) {
       totalExecutions,
       testCasesCreated,
       bugsReported,
-      avgExecutionTimeSeconds: avgDuration._avg.durationSeconds || 0,
+      avgExecutionTimeSeconds: avgDuration._avg.actualDurationSeconds || 0,
     },
     executionBreakdown: statusBreakdown,
     generatedAt: new Date(),
@@ -345,8 +345,76 @@ export async function getProjectTestMetrics(projectId) {
   };
 }
 
+/**
+ * Generate defect analysis summary for a project
+ * @param {number} projectId - Project ID
+ * @returns {Promise<Object>} Defect analysis data
+ */
+export async function generateDefectAnalysis(projectId) {
+  const [totalDefects, statusBreakdown, priorityBreakdown, severityBreakdown] = await Promise.all([
+    prisma.bug.count({ where: { projectId } }),
+    prisma.bug.groupBy({
+      by: ['status'],
+      where: { projectId },
+      _count: { id: true },
+    }),
+    prisma.bug.groupBy({
+      by: ['priority'],
+      where: { projectId },
+      _count: { id: true },
+    }),
+    prisma.bug.groupBy({
+      by: ['severity'],
+      where: { projectId },
+      _count: { id: true },
+    }),
+  ]);
+
+  const statusMap = {};
+  statusBreakdown.forEach((item) => {
+    statusMap[item.status] = item._count.id;
+  });
+
+  const priorityMap = {};
+  priorityBreakdown.forEach((item) => {
+    priorityMap[item.priority] = item._count.id;
+  });
+
+  const severityMap = {};
+  severityBreakdown.forEach((item) => {
+    severityMap[item.severity] = item._count.id;
+  });
+
+  const resolvedCount =
+    (statusMap.VERIFIED_FIXED || 0) + (statusMap.CLOSED || 0);
+  const reopenedCount = statusMap.REOPENED || 0;
+  const openCount = Math.max(totalDefects - resolvedCount, 0);
+  const resolvedRate = totalDefects > 0 ? ((resolvedCount / totalDefects) * 100).toFixed(2) : 0;
+
+  return {
+    projectId,
+    totalDefects,
+    openCount,
+    resolvedCount,
+    reopenedCount,
+    resolvedRate: Number(resolvedRate),
+    breakdown: {
+      byStatus: statusMap,
+      byPriority: priorityMap,
+      bySeverity: severityMap,
+    },
+    // Provide generic fields for scheduled report emails.
+    totalTests: totalDefects,
+    passRate: Number(resolvedRate),
+    failedCount: openCount,
+    blockedCount: reopenedCount,
+    generatedAt: new Date(),
+  };
+}
+
 export default {
   generateExecutionReport,
+  generateDefectAnalysis,
   generateTesterPerformanceReport,
   exportTestRunToCSV,
   getProjectTestMetrics,

@@ -57,8 +57,7 @@ export async function createNotification(userId, data, sendRealtime = true) {
     try {
       await emitNotificationToUser(userId, notification, false, false);
     } catch (error) {
-      console.error('Error emitting real-time notification:', error);
-      // Don't fail the request if emission fails
+      // Don't fail the request if emission fails - non-critical error
     }
   }
 

@@ -1,31 +1,67 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import Home from '@/pages/Home';
-import Signup from '@/pages/Signup';
-import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
-import VerifyEmail from '@/pages/VerifyEmail';
-import Chat from '@/pages/Chat';
-import TestRunCreation from '@/pages/TestRunCreation';
-import TestExecution from '@/pages/TestExecution';
-import TestExecutionSummary from '@/pages/TestExecutionSummary';
-import BugsPage from '@/pages/BugsPage';
-import BugDetailsPage from '@/pages/BugDetailsPage';
-import BugCreationForm from '@/pages/BugCreationForm';
-import TestSuitesPage from '@/pages/TestSuitesPage';
-import TestSuiteCreatePage from '@/pages/TestSuiteCreatePage';
-import TestSuiteDetailPage from '@/pages/TestSuiteDetailPage';
-import SuiteRunDetailPage from '@/pages/SuiteRunDetailPage';
-import ReportsPage from '@/pages/ReportsPage';
-import AdminUserDetailPage from '@/pages/AdminUserDetailPage';
-import TestCaseDetailPage from '@/pages/TestCaseDetailPage';
-import TestRunDetailPage from '@/pages/TestRunDetailPage';
-import SearchResultsPage from '@/pages/SearchResultsPage';
+
+// Lazy loaded pages for code splitting
+const Home = lazy(() => import('@/pages/Home'));
+const Signup = lazy(() => import('@/pages/Signup'));
+const Login = lazy(() => import('@/pages/Login'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const VerifyEmail = lazy(() => import('@/pages/VerifyEmail'));
+const Chat = lazy(() => import('@/pages/Chat'));
+const TestRunCreation = lazy(() => import('@/pages/TestRunCreation'));
+const TestExecution = lazy(() => import('@/pages/TestExecution'));
+const TestExecutionSummary = lazy(() => import('@/pages/TestExecutionSummary'));
+const BugsPage = lazy(() => import('@/pages/BugsPage'));
+const BugDetailsPage = lazy(() => import('@/pages/BugDetailsPage'));
+const BugCreationForm = lazy(() => import('@/pages/BugCreationForm'));
+const TestSuitesPage = lazy(() => import('@/pages/TestSuitesPage'));
+const TestSuiteCreatePage = lazy(() => import('@/pages/TestSuiteCreatePage'));
+const TestSuiteDetailPage = lazy(() => import('@/pages/TestSuiteDetailPage'));
+const SuiteRunDetailPage = lazy(() => import('@/pages/SuiteRunDetailPage'));
+const ReportsPage = lazy(() => import('@/pages/ReportsPage'));
+const ScheduledReportsPage = lazy(() => import('@/pages/ScheduledReportsPage'));
+const AdminUserDetailPage = lazy(() => import('@/pages/AdminUserDetailPage'));
+const TestCaseDetailPage = lazy(() => import('@/pages/TestCaseDetailPage'));
+const TestRunDetailPage = lazy(() => import('@/pages/TestRunDetailPage'));
+const SearchResultsPage = lazy(() => import('@/pages/SearchResultsPage'));
+const AnalyticsDashboard = lazy(() => import('@/pages/AnalyticsDashboard'));
+const TestPlansPage = lazy(() => import('@/pages/TestPlansPage'));
+const ApiKeysPage = lazy(() => import('@/pages/ApiKeysPage'));
+const IntegrationsPage = lazy(() => import('@/pages/IntegrationsPage'));
+const MilestonesPage = lazy(() => import('@/pages/MilestonesPage'));
+const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
+const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'));
+const ProjectDetailPage = lazy(() => import('@/pages/ProjectDetailPage'));
+const ProjectTestCasesPage = lazy(() => import('@/pages/ProjectTestCasesPage'));
+const TemplateManagementPage = lazy(() => import('@/pages/TemplateManagementPage'));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
+const AdminPanelPage = lazy(() => import('@/pages/AdminPanelPage'));
+const ProjectsListPage = lazy(() => import('@/pages/ProjectsListPage'));
+const WebhooksPage = lazy(() => import('@/pages/WebhooksPage'));
+const TestPlanDetailPage = lazy(() => import('@/pages/TestPlanDetailPage'));
+const EvidenceGalleryPage = lazy(() => import('@/pages/EvidenceGalleryPage'));
+const AuditLogsPage = lazy(() => import('@/pages/AuditLogsPage'));
 import NotificationToast from '@/components/NotificationToast';
 import DashboardLayout from '@/components/DashboardLayout';
+
+// Loading fallback component
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="tt-card px-6 py-5 text-sm text-[var(--muted)]">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin"></div>
+          Loading...
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -78,16 +114,19 @@ function RoleRoute({ children, allowedRoles = [] }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/" element={<Suspense fallback={<PageLoader />}><Home /></Suspense>} />
+      <Route path="/signup" element={<Suspense fallback={<PageLoader />}><Signup /></Suspense>} />
+      <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+      <Route path="/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmail /></Suspense>} />
+      <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense>} />
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <Dashboard />
+              <Suspense fallback={<PageLoader />}>
+                <Dashboard />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -97,7 +136,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <Chat />
+              <Suspense fallback={<PageLoader />}>
+                <Chat />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -107,7 +148,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["TESTER", "DEVELOPER"]}>
-              <TestRunCreation />
+              <Suspense fallback={<PageLoader />}>
+                <TestRunCreation />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -117,7 +160,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestExecution />
+              <Suspense fallback={<PageLoader />}>
+                <TestExecution />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -127,7 +172,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestExecutionSummary />
+              <Suspense fallback={<PageLoader />}>
+                <TestExecutionSummary />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -137,7 +184,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <BugsPage />
+              <Suspense fallback={<PageLoader />}>
+                <BugsPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -147,7 +196,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "TESTER"]}>
-              <BugCreationForm />
+              <Suspense fallback={<PageLoader />}>
+                <BugCreationForm />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -157,7 +208,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <BugDetailsPage />
+              <Suspense fallback={<PageLoader />}>
+                <BugDetailsPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -167,7 +220,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestSuitesPage />
+              <Suspense fallback={<PageLoader />}>
+                <TestSuitesPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -177,7 +232,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestSuiteCreatePage />
+              <Suspense fallback={<PageLoader />}>
+                <TestSuiteCreatePage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -187,7 +244,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestSuiteDetailPage />
+              <Suspense fallback={<PageLoader />}>
+                <TestSuiteDetailPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -197,7 +256,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <SuiteRunDetailPage />
+              <Suspense fallback={<PageLoader />}>
+                <SuiteRunDetailPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -207,7 +268,21 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <ReportsPage />
+              <Suspense fallback={<PageLoader />}>
+                <ReportsPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/scheduled-reports"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ScheduledReportsPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -217,7 +292,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestCaseDetailPage />
+              <Suspense fallback={<PageLoader />}>
+                <TestCaseDetailPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -227,7 +304,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <TestRunDetailPage />
+              <Suspense fallback={<PageLoader />}>
+                <TestRunDetailPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -237,7 +316,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
-              <SearchResultsPage />
+              <Suspense fallback={<PageLoader />}>
+                <SearchResultsPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }
@@ -247,7 +328,309 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RoleRoute allowedRoles={["ADMIN"]}>
-              <AdminUserDetailPage />
+              <Suspense fallback={<PageLoader />}>
+                <AdminUserDetailPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/analytics"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <AnalyticsDashboard />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <AnalyticsDashboard />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-plans"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <TestPlansPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/test-plans"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <TestPlansPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-plans/:planId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <TestPlanDetailPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/test-plans/:planId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <TestPlanDetailPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/webhooks"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <WebhooksPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/webhooks"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <WebhooksPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/evidence"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <EvidenceGalleryPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/evidence"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <EvidenceGalleryPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/api-keys"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ApiKeysPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/api-keys"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ApiKeysPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integrations"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <IntegrationsPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/integrations"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <IntegrationsPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/milestones"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <MilestonesPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/milestones"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <MilestonesPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <NotificationsPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ProjectDetailPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/test-cases"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ProjectTestCasesPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/templates"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <TemplateManagementPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ProjectsListPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <SettingsPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN", "DEVELOPER", "TESTER"]}>
+              <Suspense fallback={<PageLoader />}>
+                <ProfilePage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN"]}>
+              <Suspense fallback={<PageLoader />}>
+                <AdminPanelPage />
+              </Suspense>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit-logs"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allowedRoles={["ADMIN"]}>
+              <Suspense fallback={<PageLoader />}>
+                <AuditLogsPage />
+              </Suspense>
             </RoleRoute>
           </ProtectedRoute>
         }

@@ -7,6 +7,7 @@
 import { getPrismaClient } from '../lib/prisma.js';
 import { Resend } from 'resend';
 import { convertTz } from '../lib/timezone.js';
+import { logInfo, logError } from '../lib/logger.js';
 
 const prisma = getPrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -40,7 +41,7 @@ export async function createDigestSchedule(userId, frequency = 'DAILY', preferre
 
     return schedule;
   } catch (error) {
-    console.error('✗ Failed to create digest schedule:', error);
+    logError('Failed to create digest schedule', { error, userId, frequency });
     throw error;
   }
 }
@@ -69,7 +70,7 @@ export async function updateDigestSchedule(userId, updates) {
       data: updates,
     });
   } catch (error) {
-    console.error('✗ Failed to update digest schedule:', error);
+    logError('Failed to update digest schedule', { error, userId });
     throw error;
   }
 }
@@ -119,7 +120,7 @@ export async function getPendingDigests() {
       },
     });
   } catch (error) {
-    console.error('✗ Failed to get pending digests:', error);
+    logError('Failed to get pending digests', { error });
     throw error;
   }
 }
@@ -170,7 +171,7 @@ export async function compileDigest(userId, frequency = 'DAILY') {
       unreadCount: notifications.filter(n => !n.isRead).length,
     };
   } catch (error) {
-    console.error('✗ Failed to compile digest:', error);
+    logError('Failed to compile digest', { error, userId });
     throw error;
   }
 }
@@ -247,10 +248,10 @@ export async function sendDigestEmail(digestData) {
       html,
     });
 
-    console.log(`✓ Digest email sent to ${user.email}`);
+    logInfo('Digest email sent', { email: user.email, userId: user.id });
     return response;
   } catch (error) {
-    console.error(`✗ Failed to send digest email to ${user.email}:`, error);
+    logError('Failed to send digest email', { error, email: user.email, userId: user.id });
     throw error;
   }
 }
@@ -360,7 +361,7 @@ function getTypeEmoji(type) {
 export async function sendPendingDigests() {
   try {
     const pendingDigests = await getPendingDigests();
-    console.log(`→ Processing ${pendingDigests.length} pending digests`);
+    logInfo('Processing pending digests', { count: pendingDigests.length });
 
     let sent = 0;
     let failed = 0;
@@ -389,15 +390,15 @@ export async function sendPendingDigests() {
           },
         });
       } catch (error) {
-        console.error(`✗ Failed to send digest for user ${schedule.userId}:`, error);
+        logError('Failed to send digest for user', { error, userId: schedule.userId });
         failed++;
       }
     }
 
-    console.log(`✓ Sent ${sent} digests, ${failed} failed`);
+    logInfo('Digest sending completed', { sent, failed });
     return { attempted: pendingDigests.length, sent, failed };
   } catch (error) {
-    console.error('✗ Error in sendPendingDigests:', error);
+    logError('Error in sendPendingDigests', { error });
     throw error;
   }
 }

@@ -15,6 +15,12 @@
     },
     "test": {
       "outputs": []
+    },
+    "test:coverage": {
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "outputs": []
     }
   }
 }

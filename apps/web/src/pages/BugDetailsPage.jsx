@@ -393,7 +393,7 @@ export default function BugDetailsPage() {
                     )}
 
                     {/* Request Re-test */}
-                    {user?.role === 'TESTER' && bug.status === 'FIXED' && (
+                    {user?.role === 'DEVELOPER' && bug.status === 'FIXED' && (
                       <button
                         onClick={handleRequestRetest}
                         className="tt-btn tt-btn-primary w-full"

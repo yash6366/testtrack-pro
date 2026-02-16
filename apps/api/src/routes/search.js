@@ -31,7 +31,15 @@ export async function searchRoutes(fastify) {
           return reply.code(400).send({ error: 'Search query must be at least 2 characters' });
         }
 
-        const resourceTypes = types ? types.split(',') : ['TEST_CASE', 'BUG', 'EXECUTION'];
+        // Validate resource types
+        const ALLOWED_TYPES = ['TEST_CASE', 'BUG', 'EXECUTION'];
+        let resourceTypes = types ? types.split(',').map(t => t.trim().toUpperCase()) : ALLOWED_TYPES;
+        resourceTypes = resourceTypes.filter(t => ALLOWED_TYPES.includes(t));
+        
+        if (resourceTypes.length === 0) {
+          return reply.code(400).send({ error: 'Invalid resource types. Allowed: TEST_CASE, BUG, EXECUTION' });
+        }
+        
         const results = await globalSearch(Number(projectId), q, resourceTypes, {
           skip: skip ? Number(skip) : 0,
           take: take ? Number(take) : 20,

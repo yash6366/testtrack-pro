@@ -95,7 +95,7 @@ export async function generateEnhancedBugReportCSV(projectId, filters = {}) {
     ...(filters.severity && { severity: filters.severity }),
   };
 
-  const bugs = await prisma.defect.findMany({
+  const bugs = await prisma.bug.findMany({
     where,
     include: {
       reporter: { select: { name: true } },
@@ -149,57 +149,65 @@ export async function generateTesterPerformanceCSV(userId, weeks = 4) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - (weeks * 7));
 
-  const [user, executions, bugs] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
-    prisma.testExecution.findMany({
-      where: { executedBy: userId, createdAt: { gte: startDate } },
-      include: {
-        testCase: { select: { type: true } },
-      },
-    }),
-    prisma.defect.findMany({
-      where: { reporterId: userId, createdAt: { gte: startDate } },
-      select: { bugNumber: true, priority: true, severity: true },
-    }),
-  ]);
+  try {
+    const [user, executions, bugs] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+      prisma.testExecution.findMany({
+        where: { executedBy: userId, createdAt: { gte: startDate } },
+        include: {
+          testCase: { select: { type: true } },
+        },
+      }),
+      prisma.bug.findMany({
+        where: { reporterId: userId, createdAt: { gte: startDate } },
+        select: { bugNumber: true, priority: true, severity: true },
+      }),
+    ]);
 
-  const passed = executions.filter((e) => e.status === 'PASSED').length;
-  const failed = executions.filter((e) => e.status === 'FAILED').length;
-  const passRate = executions.length > 0 ? ((passed / executions.length) * 100).toFixed(2) : 0;
-
-  const typeBreakdown = {};
-  executions.forEach((e) => {
-    if (!typeBreakdown[e.testCase.type]) {
-      typeBreakdown[e.testCase.type] = 0;
+    if (!user) {
+      throw new Error('User not found');
     }
-    typeBreakdown[e.testCase.type]++;
-  });
 
-  const csv = [
-    'TESTER PERFORMANCE REPORT',
-    `Name,${user?.name || 'Unknown'}`,
-    `Email,${user?.email || 'N/A'}`,
-    `Period,Last ${weeks} weeks`,
-    `Report Generated,${new Date().toISOString().split('T')[0]}`,
-    '',
-    'EXECUTION METRICS',
-    'Total Executions,' + executions.length,
-    'Passed,' + passed,
-    'Failed,' + failed,
-    'Pass Rate,' + passRate + '%',
-    'Bugs Reported,' + bugs.length,
-    'Bug Detection Rate,' + (executions.length > 0 ? ((bugs.length / executions.length) * 100).toFixed(2) : 0) + '%',
-    '',
-    'TEST TYPE BREAKDOWN',
-    'Test Type,Count',
-    ...Object.entries(typeBreakdown).map(([type, count]) => `${type},${count}`),
-    '',
-    'BUGS REPORTED',
-    'Bug Number,Priority,Severity',
-    ...bugs.map((b) => `${b.bugNumber},${b.priority},${b.severity}`),
-  ];
+    const passed = executions.filter((e) => e.status === 'PASSED').length;
+    const failed = executions.filter((e) => e.status === 'FAILED').length;
+    const passRate = executions.length > 0 ? ((passed / executions.length) * 100).toFixed(2) : 0;
 
-  return csv.join('\n');
+    const typeBreakdown = {};
+    executions.forEach((e) => {
+      if (!typeBreakdown[e.testCase.type]) {
+        typeBreakdown[e.testCase.type] = 0;
+      }
+      typeBreakdown[e.testCase.type]++;
+    });
+
+    const csv = [
+      'TESTER PERFORMANCE REPORT',
+      `Name,${user?.name || 'Unknown'}`,
+      `Email,${user?.email || 'N/A'}`,
+      `Period,Last ${weeks} weeks`,
+      `Report Generated,${new Date().toISOString().split('T')[0]}`,
+      '',
+      'EXECUTION METRICS',
+      'Total Executions,' + executions.length,
+      'Passed,' + passed,
+      'Failed,' + failed,
+      'Pass Rate,' + passRate + '%',
+      'Bugs Reported,' + bugs.length,
+      'Bug Detection Rate,' + (executions.length > 0 ? ((bugs.length / executions.length) * 100).toFixed(2) : 0) + '%',
+      '',
+      'TEST TYPE BREAKDOWN',
+      'Test Type,Count',
+      ...Object.entries(typeBreakdown).map(([type, count]) => `${type},${count}`),
+      '',
+      'BUGS REPORTED',
+      'Bug Number,Priority,Severity',
+      ...bugs.map((b) => `${b.bugNumber},${b.priority},${b.severity}`),
+    ];
+
+    return csv.join('\n');
+  } catch (error) {
+    throw new Error(`Failed to generate tester performance CSV: ${error.message}`);
+  }
 }
 
 /**
@@ -209,66 +217,73 @@ export async function generateDeveloperPerformanceCSV(userId, weeks = 8) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - (weeks * 7));
 
-  const [user, bugsAssigned, bugsResolved, bugsReopened] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
-    prisma.defect.findMany({
-      where: { assigneeId: userId, createdAt: { gte: startDate } },
-      select: { bugNumber: true, priority: true, severity: true, status: true, createdAt: true, closedAt: true },
-    }),
-    prisma.defect.count({
-      where: {
-        assigneeId: userId,
-        createdAt: { gte: startDate },
-        status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
-      },
-    }),
-    prisma.defect.count({
-      where: {
-        assigneeId: userId,
-        createdAt: { gte: startDate },
-        status: 'REOPENED',
-      },
-    }),
-  ]);
+  try {
+    const [user, bugsAssigned, bugsResolved, bugsReopened] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+      prisma.bug.findMany({
+        where: { assigneeId: userId, createdAt: { gte: startDate } },
+        select: { bugNumber: true, priority: true, severity: true, status: true, createdAt: true, closedAt: true },
+      }),
+      prisma.bug.count({
+        where: {
+          assigneeId: userId,
+          createdAt: { gte: startDate },
+          status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
+        },
+      }),
+      prisma.bug.count({
+        where: {
+          assigneeId: userId,
+          createdAt: { gte: startDate },
+          status: 'REOPENED',
+        },
+      }),
+    ]);
 
-  const totalAssigned = bugsAssigned.length;
-  const resolutionRate = totalAssigned > 0 ? ((bugsResolved / totalAssigned) * 100).toFixed(2) : 0;
-  const reopenRate = bugsResolved > 0 ? ((bugsReopened / bugsResolved) * 100).toFixed(2) : 0;
+    if (!user) {
+      throw new Error('User not found');
+    }
 
-  const avgResolutionHours = bugsAssigned.length > 0
-    ? (
-        bugsAssigned
-          .filter((b) => b.closedAt)
-          .reduce((sum, b) => sum + (b.closedAt - b.createdAt), 0) /
-        (1000 * 60 * 60) /
-        bugsAssigned.filter((b) => b.closedAt).length
-      ).toFixed(1)
-    : 0;
+    const totalAssigned = bugsAssigned.length;
+    const resolutionRate = totalAssigned > 0 ? ((bugsResolved / totalAssigned) * 100).toFixed(2) : 0;
+    const reopenRate = bugsResolved > 0 ? ((bugsReopened / bugsResolved) * 100).toFixed(2) : 0;
 
-  const csv = [
-    'DEVELOPER PERFORMANCE REPORT',
-    `Name,${user?.name || 'Unknown'}`,
-    `Email,${user?.email || 'N/A'}`,
-    `Period,Last ${weeks} weeks`,
-    `Report Generated,${new Date().toISOString().split('T')[0]}`,
-    '',
-    'BUG METRICS',
-    'Total Bugs Assigned,' + totalAssigned,
-    'Bugs Resolved,' + bugsResolved,
-    'Bugs Reopened,' + bugsReopened,
-    'Resolution Rate,' + resolutionRate + '%',
-    'Reopen Rate,' + reopenRate + '%',
-    'Avg Resolution Time (hours),' + avgResolutionHours,
-    '',
-    'BUG DETAILS',
-    'Bug Number,Priority,Severity,Status,Days to Resolution',
-    ...bugsAssigned.map((b) => {
-      const daysToRes = b.closedAt ? Math.floor((b.closedAt - b.createdAt) / (1000 * 60 * 60 * 24)) : 'N/A';
-      return `${b.bugNumber},${b.priority},${b.severity},${b.status},${daysToRes}`;
-    }),
-  ];
+    const closedBugs = bugsAssigned.filter((b) => b.closedAt);
+    const avgResolutionHours = closedBugs.length > 0
+      ? (
+          closedBugs.reduce((sum, b) => sum + (b.closedAt - b.createdAt), 0) /
+          (1000 * 60 * 60) /
+          closedBugs.length
+        ).toFixed(1)
+      : 0;
 
-  return csv.join('\n');
+    const csv = [
+      'DEVELOPER PERFORMANCE REPORT',
+      `Name,${user?.name || 'Unknown'}`,
+      `Email,${user?.email || 'N/A'}`,
+      `Period,Last ${weeks} weeks`,
+      `Report Generated,${new Date().toISOString().split('T')[0]}`,
+      '',
+      'BUG METRICS',
+      'Total Bugs Assigned,' + totalAssigned,
+      'Bugs Resolved,' + bugsResolved,
+      'Bugs Reopened,' + bugsReopened,
+      'Resolution Rate,' + resolutionRate + '%',
+      'Reopen Rate,' + reopenRate + '%',
+      'Avg Resolution Time (hours),' + avgResolutionHours,
+      '',
+      'BUG DETAILS',
+      'Bug Number,Priority,Severity,Status,Days to Resolution',
+      ...bugsAssigned.map((b) => {
+        const daysToRes = b.closedAt ? Math.floor((b.closedAt - b.createdAt) / (1000 * 60 * 60 * 24)) : 'N/A';
+        return `${b.bugNumber},${b.priority},${b.severity},${b.status},${daysToRes}`;
+      }),
+    ];
+
+    return csv.join('\n');
+  } catch (error) {
+    throw new Error(`Failed to generate developer performance CSV: ${error.message}`);
+  }
 }
 
 /**
@@ -278,7 +293,7 @@ export async function generateAnalyticsDashboardCSV(projectId) {
   const [testCases, testRuns, bugs, executions] = await Promise.all([
     prisma.testCase.count({ where: { projectId, isDeleted: false } }),
     prisma.testRun.count({ where: { projectId } }),
-    prisma.defect.count({ where: { projectId } }),
+    prisma.bug.count({ where: { projectId } }),
     prisma.testExecution.findMany({ where: { testRun: { projectId } }, select: { status: true } }),
   ]);
 
@@ -547,7 +562,7 @@ export async function generateTesterPerformancePDF(userId, weeks = 4) {
         testCase: { select: { type: true } },
       },
     }),
-    prisma.defect.findMany({
+    prisma.bug.findMany({
       where: { reporterId: userId, createdAt: { gte: startDate } },
       select: { bugNumber: true, priority: true, severity: true },
     }),

@@ -22,7 +22,7 @@ export default function NotificationPreferences() {
     setLoading(true);
     try {
       const response = await apiClient.get(
-        '/notifications/preferences',
+        '/api/notifications/preferences',
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setPrefs(response.data);
@@ -47,7 +47,7 @@ export default function NotificationPreferences() {
     setMessage(null);
     try {
       await apiClient.patch(
-        '/notifications/preferences',
+        '/api/notifications/preferences',
         prefs,
         { headers: { Authorization: `Bearer ${token}` } }
       );

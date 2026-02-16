@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks';
 import { apiClient } from '@/lib/apiClient';
+import { logError } from '@/lib/errorLogger';
 
 /**
  * TestRunCreation Page
@@ -52,7 +53,7 @@ export default function TestRunCreation() {
         const cases = response?.data || response?.testCases || [];
         setTestCases(Array.isArray(cases) ? cases : []);
       } catch (err) {
-        console.error('Error loading test cases:', err);
+        logError(err, 'TestRunCreation.loadTestCases');
         setError('Failed to load test cases. Please go back and try again.');
       } finally {
         setLoading(false);
@@ -133,7 +134,7 @@ export default function TestRunCreation() {
         );
       }
     } catch (err) {
-      console.error('Error creating test run:', err);
+      logError(err, 'TestRunCreation.createTestRun');
       setError(err.message || 'Failed to create test run');
     } finally {
       setSubmitting(false);

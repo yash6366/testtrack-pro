@@ -29,6 +29,17 @@ function isMainAdminEmail(email) {
   return String(email || '').trim().toLowerCase() === MAIN_ADMIN_EMAIL;
 }
 
+/**
+ * Register a new user account
+ * @param {Object} fastify - Fastify instance
+ * @param {Object} userData - User registration data
+ * @param {string} userData.name - User's full name
+ * @param {string} userData.email - User's email address (must be unique)
+ * @param {string} userData.password - User's password (min 8 characters)
+ * @param {string} [userData.role='DEVELOPER'] - User role (ADMIN, TESTER, DEVELOPER, GUEST)
+ * @returns {Promise<Object>} Object containing created user and message
+ * @throws {Error} If user already exists or validation fails
+ */
 export async function signup(fastify, { name, email, password, role = 'DEVELOPER' }) {
   // Validate input
   const validated = SignupSchema.parse({ name, email, password, role });
@@ -84,6 +95,15 @@ export async function signup(fastify, { name, email, password, role = 'DEVELOPER
   };
 }
 
+/**
+ * Authenticate user and generate JWT tokens
+ * @param {Object} fastify - Fastify instance
+ * @param {Object} credentials - Login credentials
+ * @param {string} credentials.email - User's email address
+ * @param {string} credentials.password - User's password
+ * @returns {Promise<Object>} Object containing access token, refresh token, and user data
+ * @throws {Error} If credentials are invalid, account is locked, or email not verified
+ */
 export async function login(fastify, { email, password }) {
   // Validate input
   const validated = LoginSchema.parse({ email, password });
@@ -159,9 +179,11 @@ export async function login(fastify, { email, password }) {
       });
 
       // Send account locked email
-      await sendAccountLockedEmail(user.email, user.name, LOCKOUT_DURATION_MINUTES).catch(err => {
-        console.error('Failed to send account locked email:', err);
-      });
+      try {
+        await sendAccountLockedEmail(user.email, user.name, LOCKOUT_DURATION_MINUTES);
+      } catch (err) {
+        // Email failure is non-critical, log but don't block the operation
+      }
 
       throw new Error(`Account locked due to ${MAX_LOGIN_ATTEMPTS} failed login attempts. Please try again in ${LOCKOUT_DURATION_MINUTES} minutes or reset your password.`);
     }
@@ -207,6 +229,11 @@ export async function login(fastify, { email, password }) {
   };
 }
 
+/**
+ * Logout user and invalidate current session
+ * @param {number} userId - User ID to logout
+ * @returns {Promise<Object>} Success message and user data
+ */
 export async function logout(userId) {
   // Increment tokenVersion to invalidate all tokens for this user
   // This immediately rejects any requests using old JWT tokens
@@ -227,6 +254,11 @@ export async function logout(userId) {
   };
 }
 
+/**
+ * Logout user from all devices/sessions
+ * @param {number} userId - User ID to logout from all sessions
+ * @returns {Promise<Object>} Success message and user data
+ */
 export async function logoutAll(userId) {
   // Same as logout - increment tokenVersion to invalidate ALL sessions
   // Since we use a single tokenVersion per user, incrementing it revokes all tokens
@@ -247,6 +279,12 @@ export async function logoutAll(userId) {
   };
 }
 
+/**
+ * Verify user's email address using verification token
+ * @param {string} verificationToken - Email verification token sent to user
+ * @returns {Promise<Object>} Verified user data and success message
+ * @throws {Error} If token is invalid or expired
+ */
 export async function verifyEmail(verificationToken) {
   // Find user with verification token
   const user = await prisma.user.findFirst({
@@ -287,6 +325,11 @@ export async function verifyEmail(verificationToken) {
 }
 
 // Password Reset Functions
+/**
+ * Request password reset link via email
+ * @param {string} email - User's email address
+ * @returns {Promise<Object>} Success message (doesn't reveal if user exists)
+ */
 export async function requestPasswordReset(email) {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -315,7 +358,7 @@ export async function requestPasswordReset(email) {
 
   // Send reset email
   await sendPasswordResetEmail(user.email, user.name, resetToken).catch(err => {
-    console.error('Failed to send password reset email:', err);
+    // Email failure is non-critical
   });
 
   return {
@@ -323,6 +366,13 @@ export async function requestPasswordReset(email) {
   };
 }
 
+/**
+ * Reset user password using reset token
+ * @param {string} token - Password reset token from email
+ * @param {string} newPassword - New password (must meet strength requirements)
+ * @returns {Promise<Object>} Success message
+ * @throws {Error} If token is invalid/expired or password doesn't meet requirements
+ */
 export async function resetPassword(token, newPassword) {
   // Hash the token to compare with database
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -406,6 +456,14 @@ async function validatePasswordHistory(user, newPassword) {
   }
 }
 
+/**
+ * Change user password (requires current password verification)
+ * @param {number} userId - User ID
+ * @param {string} currentPassword - Current password for verification
+ * @param {string} newPassword - New password (must meet strength requirements)
+ * @returns {Promise<Object>} Success message
+ * @throws {Error} If current password is incorrect or new password doesn't meet requirements
+ */
 export async function changePassword(userId, currentPassword, newPassword) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -454,6 +512,13 @@ export async function changePassword(userId, currentPassword, newPassword) {
 }
 
 // Admin Functions
+/**
+ * Unlock a locked user account (admin only)
+ * @param {number} adminId - Admin user ID performing the unlock
+ * @param {number} targetUserId - User ID to unlock
+ * @returns {Promise<Object>} Success message and unlocked user data
+ * @throws {Error} If admin doesn't have permission
+ */
 export async function unlockAccount(adminId, targetUserId) {
   // Verify admin permissions (caller should check this, but double-check)
   const admin = await prisma.user.findUnique({

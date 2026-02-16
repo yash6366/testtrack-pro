@@ -1,3 +1,13 @@
+/**
+ * Utility Script: Check Database Users
+ * 
+ * Lists all users in the database with verification status
+ * 
+ * Usage:
+ *   cd apps/api
+ *   node ../../scripts/dev/check-users.js
+ */
+
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

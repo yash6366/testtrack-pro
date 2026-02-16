@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
+import { logError } from '../lib/logger.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -30,7 +31,7 @@ export async function sendVerificationEmail(email, verificationToken) {
 
     return response;
   } catch (error) {
-    console.error('Failed to send verification email:', error);
+    logError('Failed to send verification email', { error, email });
     throw new Error('Failed to send verification email');
   }
 }
@@ -84,7 +85,7 @@ export async function sendPasswordResetEmail(email, name, resetToken) {
 
     return response;
   } catch (error) {
-    console.error('Failed to send password reset email:', error);
+    logError('Failed to send password reset email', { error, email });
     throw new Error('Failed to send password reset email');
   }
 }
@@ -127,7 +128,7 @@ export async function sendAccountLockedEmail(email, name, lockoutDurationMinutes
 
     return response;
   } catch (error) {
-    console.error('Failed to send account locked email:', error);
+    logError('Failed to send account locked email', { error, email });
     throw new Error('Failed to send account locked email');
   }
 }
@@ -165,7 +166,7 @@ export async function sendPasswordChangedEmail(email, name) {
 
     return response;
   } catch (error) {
-    console.error('Failed to send password changed email:', error);
+    logError('Failed to send password changed email', { error, email });
     throw new Error('Failed to send password changed email');
   }
 }
@@ -244,7 +245,7 @@ export async function sendBugCreatedEmail(recipientEmail, bugData, reporterName)
 
     return response;
   } catch (error) {
-    console.error('Failed to send bug created email:', error);
+    logError('Failed to send bug created email', { error, recipientEmail, bugId: bugData.id });
     throw new Error('Failed to send bug created email');
   }
 }
@@ -312,7 +313,7 @@ export async function sendBugAssignedEmail(recipientEmail, bugData, assignerName
 
     return response;
   } catch (error) {
-    console.error('Failed to send bug assigned email:', error);
+    logError('Failed to send bug assigned email', { error, assigneeEmail, bugId: bugData.id });
     throw new Error('Failed to send bug assigned email');
   }
 }
@@ -384,8 +385,38 @@ export async function sendBugStatusChangedEmail(recipientEmail, bugData, oldStat
 
     return response;
   } catch (error) {
-    console.error('Failed to send bug status changed email:', error);
+    logError('Failed to send bug status changed email', { error, recipientEmail, bugId: bugData.id });
     throw new Error('Failed to send bug status changed email');
+  }
+}
+
+/**
+ * Generic function to send an email
+ * @param {Object} options - Email options
+ * @param {string} options.to - Recipient email
+ * @param {string} options.subject - Email subject
+ * @param {string} options.html - HTML content
+ * @param {string} options.replyTo - Reply-to email (optional)
+ * @returns {Promise<Object>} Resend response
+ */
+export async function sendEmail({ to, subject, html, replyTo }) {
+  try {
+    const emailOptions = {
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to,
+      subject,
+      html,
+    };
+
+    if (replyTo) {
+      emailOptions.replyTo = replyTo;
+    }
+
+    const response = await resend.emails.send(emailOptions);
+    return response;
+  } catch (error) {
+    logError('Failed to send email', { error, to, subject });
+    throw new Error('Failed to send email');
   }
 }
 

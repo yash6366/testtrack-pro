@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { FolderKanban } from 'lucide-react';
+import { logError } from '../lib/errorLogger';
 
 export default function TestSuitesPage() {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ export default function TestSuitesPage() {
       setSuites(response);
     } catch (err) {
       setError(err.message || 'Failed to load test suites');
-      console.error(err);
+      logError(err, 'TestSuitesPage.loadSuites');
     } finally {
       setLoading(false);
     }
@@ -122,6 +123,7 @@ export default function TestSuitesPage() {
   };
 
   const renderSuiteNode = (suite, depth = 0) => {
+    const suiteType = suite.type || 'STATIC';
     return (
       <div key={suite.id} style={{ marginLeft: `${depth * 20}px` }}>
         <div className="p-4 border-b hover:bg-gray-50 dark:hover:bg-gray-800">
@@ -137,8 +139,8 @@ export default function TestSuitesPage() {
                 >
                   {suite.name}
                 </h3>
-                <span className={`px-2 py-1 text-xs rounded ${typeColor[suite.type]}`}>
-                  {suite.type}
+                <span className={`px-2 py-1 text-xs rounded ${typeColor[suiteType] || typeColor.CUSTOM}`}>
+                  {suiteType}
                 </span>
                 <span className={`px-2 py-1 text-xs rounded ${statusColor[suite.status]}`}>
                   {suite.status}
@@ -152,7 +154,7 @@ export default function TestSuitesPage() {
               <div className="flex gap-4 mt-2 text-sm text-gray-500">
                 <span>📝 {suite._count?.testCases || 0} test cases</span>
                 <span>📂 {suite._count?.childSuites || 0} child suites</span>
-                <span>🔄 {suite._count?.suiteRuns || 0} runs</span>
+                <span>🔄 {suite._count?.runs || 0} runs</span>
               </div>
             </div>
             <div className="flex gap-2">

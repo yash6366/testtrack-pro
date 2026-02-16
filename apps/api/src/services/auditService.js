@@ -28,7 +28,7 @@ export async function logAuditAction(performedByUserId, action, options = {}) {
     const auditLog = await prisma.auditLog.create({
       data: {
         action,
-        performedBy: performedByUserId,
+        userId: performedByUserId,
         resourceType: options.resourceType,
         resourceId: options.resourceId,
         resourceName: options.resourceName,
@@ -37,15 +37,14 @@ export async function logAuditAction(performedByUserId, action, options = {}) {
         oldValues: options.oldValues ? JSON.stringify(options.oldValues) : null,
         newValues: options.newValues ? JSON.stringify(options.newValues) : null,
         ipAddress: options.ipAddress,
-        userAgent: options.userAgent,
       },
       select: {
         id: true,
         action: true,
-        performedBy: true,
+        userId: true,
         resourceType: true,
         resourceId: true,
-        createdAt: true,
+        timestamp: true,
       },
     });
 
@@ -84,7 +83,7 @@ export async function getAuditLogs(filters = {}) {
     where.action = filters.action;
   }
   if (filters.performedBy) {
-    where.performedBy = filters.performedBy;
+    where.userId = filters.performedBy;
   }
   if (filters.resourceType) {
     where.resourceType = filters.resourceType;
@@ -98,12 +97,12 @@ export async function getAuditLogs(filters = {}) {
 
   // Date range filter
   if (filters.startDate || filters.endDate) {
-    where.createdAt = {};
+    where.timestamp = {};
     if (filters.startDate) {
-      where.createdAt.gte = new Date(filters.startDate);
+      where.timestamp.gte = new Date(filters.startDate);
     }
     if (filters.endDate) {
-      where.createdAt.lte = new Date(filters.endDate);
+      where.timestamp.lte = new Date(filters.endDate);
     }
   }
 
@@ -114,8 +113,8 @@ export async function getAuditLogs(filters = {}) {
       select: {
         id: true,
         action: true,
-        performedBy: true,
-        actor: {
+        userId: true,
+        user: {
           select: {
             id: true,
             name: true,
@@ -130,10 +129,9 @@ export async function getAuditLogs(filters = {}) {
         oldValues: true, // JSON string
         newValues: true, // JSON string
         ipAddress: true,
-        userAgent: true,
-        createdAt: true,
+        timestamp: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { timestamp: 'desc' },
       skip,
       take,
     }),
@@ -142,9 +140,20 @@ export async function getAuditLogs(filters = {}) {
 
   return {
     logs: logs.map(log => ({
-      ...log,
+      id: log.id,
+      action: log.action,
+      performedBy: log.userId,
+      actor: log.user,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      resourceName: log.resourceName,
+      projectId: log.projectId,
+      description: log.description,
       oldValues: log.oldValues ? JSON.parse(log.oldValues) : null,
       newValues: log.newValues ? JSON.parse(log.newValues) : null,
+      ipAddress: log.ipAddress,
+      userAgent: null,
+      createdAt: log.timestamp,
     })),
     pagination: {
       skip,
@@ -168,15 +177,15 @@ export async function getUserAuditLogs(targetUserId, options = {}) {
   const logs = await prisma.auditLog.findMany({
     where: {
       OR: [
-        { performedBy: targetUserId }, // Actions performed by user
+        { userId: targetUserId }, // Actions performed by user
         { resourceType: 'USER', resourceId: targetUserId }, // Actions performed on user
       ],
     },
     select: {
       id: true,
       action: true,
-      performedBy: true,
-      actor: {
+      userId: true,
+      user: {
         select: {
           name: true,
           email: true,
@@ -185,17 +194,22 @@ export async function getUserAuditLogs(targetUserId, options = {}) {
       description: true,
       oldValues: true,
       newValues: true,
-      createdAt: true,
+      timestamp: true,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { timestamp: 'desc' },
     skip,
     take,
   });
 
   return logs.map(log => ({
-    ...log,
+    id: log.id,
+    action: log.action,
+    performedBy: log.userId,
+    actor: log.user,
+    description: log.description,
     oldValues: log.oldValues ? JSON.parse(log.oldValues) : null,
     newValues: log.newValues ? JSON.parse(log.newValues) : null,
+    createdAt: log.timestamp,
   }));
 }
 

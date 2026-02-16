@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import { logError } from '../lib/errorLogger';
 
 export default function TestSuiteDetailPage() {
   const { suiteId } = useParams();
@@ -27,6 +28,7 @@ export default function TestSuiteDetailPage() {
     loadExecutionHistory();
   }, [suiteId]);
 
+  const suiteType = suite?.type || 'STATIC';
   const loadSuiteDetails = async () => {
     try {
       const response = await apiClient.get(`/api/test-suites/${suiteIdNumber}`);
@@ -43,7 +45,7 @@ export default function TestSuiteDetailPage() {
       const response = await apiClient.get(`/api/test-suites/${suiteIdNumber}/test-cases`);
       setTestCases(response);
     } catch (err) {
-      console.error('Failed to load test cases:', err);
+      logError(err, 'TestSuiteDetailPage.loadTestCases');
     }
   };
 
@@ -52,7 +54,7 @@ export default function TestSuiteDetailPage() {
       const response = await apiClient.get(`/api/test-suites/${suiteIdNumber}/runs?limit=5`);
       setExecutionHistory(response);
     } catch (err) {
-      console.error('Failed to load execution history:', err);
+      logError(err, 'TestSuiteDetailPage.loadExecutionHistory');
     }
   };
 
@@ -133,7 +135,7 @@ export default function TestSuiteDetailPage() {
             </button>
             <h1 className="text-2xl font-bold">{suite.name}</h1>
             <span className="px-3 py-1 text-sm rounded bg-blue-100 text-blue-800">
-              {suite.type}
+              {suiteType}
             </span>
             <span className="px-3 py-1 text-sm rounded bg-green-100 text-green-800">
               {suite.status}
@@ -143,7 +145,7 @@ export default function TestSuiteDetailPage() {
             <button
               onClick={handleExecuteSuite}
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              disabled={suite.isArchived}
+              disabled={suite.isDeleted || suite.status === 'ARCHIVED'}
             >
               ▶ Execute Suite
             </button>
@@ -163,7 +165,7 @@ export default function TestSuiteDetailPage() {
         <div className="flex gap-6 mt-4 text-sm text-gray-600">
           <span>📝 {suite._count.testCases} test cases</span>
           <span>📂 {suite._count.childSuites || 0} child suites</span>
-          <span>🔄 {suite._count.suiteRuns} executions</span>
+          <span>🔄 {suite._count?.runs || 0} executions</span>
           {suite.estimatedDurationMinutes && (
             <span>⏱️ Est. {suite.estimatedDurationMinutes}min</span>
           )}
@@ -308,10 +310,10 @@ export default function TestSuiteDetailPage() {
                         {new Date(run.createdAt).toLocaleString()}
                       </p>
                       <div className="flex gap-2 mt-2 text-sm">
-                        <span>✅ {run.passedCount} passed</span>
-                        <span>❌ {run.failedCount} failed</span>
-                        <span>⚠️ {run.blockedCount} blocked</span>
-                        <span>⏭️ {run.skippedCount} skipped</span>
+                        <span>✅ {run.passedCount || 0} passed</span>
+                        <span>❌ {run.failedCount || 0} failed</span>
+                        <span>⚠️ {run.blockedCount || 0} blocked</span>
+                        <span>⏭️ {run.skippedCount || 0} skipped</span>
                       </div>
                     </div>
                     <span className={`px-3 py-1 text-sm rounded ${
@@ -336,7 +338,7 @@ export default function TestSuiteDetailPage() {
             <dl className="grid grid-cols-2 gap-4">
               <div>
                 <dt className="text-sm text-gray-600">Type</dt>
-                <dd className="font-medium">{suite.type}</dd>
+                <dd className="font-medium">{suiteType}</dd>
               </div>
               <div>
                 <dt className="text-sm text-gray-600">Status</dt>
@@ -361,7 +363,7 @@ export default function TestSuiteDetailPage() {
             </dl>
           </div>
 
-          {suite.type === 'DYNAMIC' && (
+          {suiteType === 'DYNAMIC' && (
             <div className="bg-white dark:bg-gray-900 rounded shadow p-4">
               <h2 className="text-lg font-semibold mb-4">Dynamic Filter Criteria</h2>
               <dl className="space-y-2">

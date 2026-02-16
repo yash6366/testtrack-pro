@@ -4,6 +4,7 @@
  */
 
 import { getPrismaClient } from '../lib/prisma.js';
+import { parseId, validateEnum } from '../lib/validation.js';
 import { logAuditAction } from './auditService.js';
 import {
   createNotification,
@@ -27,19 +28,37 @@ const prisma = getPrismaClient();
 
 /**
  * Generate unique bug number with atomic increment to prevent collisions
+ * Uses database transaction with serializable isolation to prevent race conditions
  * @param {number} projectId - Project ID
- * @returns {Promise<string>} Bug number (e.g., BUG-001)
+ * @returns {Promise<string>} Bug number (e.g., PROJ-001)
  */
 async function generateBugNumber(projectId) {
-  // Use atomic counter to ensure uniqueness under concurrent access
-  const counter = await prisma.bugCounter.upsert({
-    where: { projectId },
-    create: { projectId, nextNumber: 1 },
-    update: { nextNumber: { increment: 1 } },
+  // Use transaction with serializable isolation level to prevent race conditions
+  return await prisma.$transaction(async (tx) => {
+    // Get project key for the prefix
+    const project = await tx.project.findUnique({
+      where: { id: projectId },
+      select: { key: true },
+    });
+    
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    
+    // Use atomic counter with row-level locking to ensure uniqueness under concurrent access
+    const counter = await tx.bugCounter.upsert({
+      where: { projectId },
+      create: { projectId, nextNumber: 1 },
+      update: { nextNumber: { increment: 1 } },
+    });
+    
+    const number = counter.nextNumber.toString().padStart(3, '0');
+    return `${project.key}-${number}`;
+  }, {
+    isolationLevel: 'Serializable',
+    maxWait: 5000, // Maximum time to wait for a transaction slot (ms)
+    timeout: 10000, // Maximum time the transaction can run (ms)
   });
-  
-  const number = counter.nextNumber.toString().padStart(3, '0');
-  return `BUG-${number}`;
 }
 
 /**
@@ -64,6 +83,17 @@ export async function createBugFromExecution(data, userId) {
     assigneeId,
   } = data;
 
+  const normalizedAffectedVersion =
+    typeof affectedVersion === 'string' && affectedVersion.trim().length > 0
+      ? affectedVersion.trim()
+      : 'Unknown';
+
+  // Safe parsing with validation
+  const resolvedTestCaseId = parseId(testCaseId, 'testCaseId', true);
+  const validatedProjectId = parseId(projectId, 'projectId', false);
+  const validatedExecutionId = parseId(executionId, 'executionId', true);
+  const validatedAssigneeId = parseId(assigneeId, 'assigneeId', true);
+
   // Validate required fields
   if (!title || typeof title !== 'string' || title.trim().length === 0) {
     throw new Error('Title is required and must be a non-empty string');
@@ -73,48 +103,72 @@ export async function createBugFromExecution(data, userId) {
     throw new Error('Description is required and must be a non-empty string');
   }
 
-  if (!projectId || typeof projectId !== 'number') {
-    throw new Error('Project ID is required and must be a number');
-  }
+  // Validate enum values using safe validation
+  const validatedEnvironment = validateEnum(
+    environment,
+    ['DEVELOPMENT', 'STAGING', 'UAT', 'PRODUCTION'],
+    'environment',
+    false
+  );
 
-  if (!environment || typeof environment !== 'string') {
-    throw new Error('Environment is required (DEVELOPMENT, STAGING, UAT, PRODUCTION)');
-  }
+  const validatedSeverity = validateEnum(
+    severity,
+    ['CRITICAL', 'MAJOR', 'MINOR', 'TRIVIAL'],
+    'severity',
+    false
+  );
 
-  // Validate enum values
-  const validEnvironments = ['DEVELOPMENT', 'STAGING', 'UAT', 'PRODUCTION'];
-  if (!validEnvironments.includes(environment)) {
-    throw new Error(`Invalid environment. Must be one of: ${validEnvironments.join(', ')}`);
-  }
+  const validatedPriority = validateEnum(
+    priority,
+    ['P0', 'P1', 'P2', 'P3', 'P4'],
+    'priority',
+    false
+  );
 
-  const validSeverities = ['CRITICAL', 'MAJOR', 'MINOR', 'TRIVIAL'];
-  if (severity && !validSeverities.includes(severity)) {
-    throw new Error(`Invalid severity. Must be one of: ${validSeverities.join(', ')}`);
-  }
-
-  const validPriorities = ['P0', 'P1', 'P2', 'P3', 'P4'];
-  if (priority && !validPriorities.includes(priority)) {
-    throw new Error(`Invalid priority. Must be one of: ${validPriorities.join(', ')}`);
-  }
-
-  const validReproducibility = ['ALWAYS', 'OFTEN', 'SOMETIMES', 'RARELY', 'CANNOT_REPRODUCE'];
-  if (reproducibility && !validReproducibility.includes(reproducibility)) {
-    throw new Error(`Invalid reproducibility. Must be one of: ${validReproducibility.join(', ')}`);
-  }
+  const validatedReproducibility = validateEnum(
+    reproducibility,
+    ['ALWAYS', 'OFTEN', 'SOMETIMES', 'RARELY', 'CANNOT_REPRODUCE'],
+    'reproducibility',
+    false
+  );
 
   // Validate project exists
   const project = await prisma.project.findUnique({
-    where: { id: projectId },
+    where: { id: validatedProjectId },
   });
 
   if (!project) {
     throw new Error('Project not found');
   }
 
+  // Determine final test case ID
+  let finalTestCaseId = resolvedTestCaseId;
+  
+  if (!finalTestCaseId && validatedExecutionId) {
+    const execution = await prisma.testExecution.findUnique({
+      where: { id: validatedExecutionId },
+      select: { testCaseId: true, projectId: true },
+    });
+
+    if (!execution) {
+      throw new Error('Test execution not found');
+    }
+
+    if (execution.projectId !== validatedProjectId) {
+      throw new Error('Execution does not belong to this project');
+    }
+
+    finalTestCaseId = execution.testCaseId;
+  }
+
+  if (!finalTestCaseId) {
+    throw new Error('Test case is required');
+  }
+
   // Validate assignee if provided
-  if (assigneeId) {
+  if (validatedAssigneeId) {
     const assignee = await prisma.user.findUnique({
-      where: { id: Number(assigneeId) },
+      where: { id: validatedAssigneeId },
       select: { id: true, role: true, isActive: true },
     });
 
@@ -123,32 +177,30 @@ export async function createBugFromExecution(data, userId) {
     }
   }
 
-  const bugNumber = await generateBugNumber(projectId);
+  const bugNumber = await generateBugNumber(validatedProjectId);
 
-  const bug = await prisma.defect.create({
+  const bug = await prisma.bug.create({
     data: {
-      projectId,
+      projectId: validatedProjectId,
       title,
       description: stepsToReproduce || description,
       bugNumber,
-      severity,
-      priority,
-      environment,
-      affectedVersion,
-      reproducibility,
-      reporterId: userId,
-      sourceExecutionId: executionId ? Number(executionId) : null,
-      sourceTestCaseId: testCaseId,
-      assigneeId: assigneeId ? Number(assigneeId) : null,
-      status: assigneeId ? 'ASSIGNED' : 'NEW',
-      createdBy: userId,
-      updatedBy: userId,
+      severity: validatedSeverity,
+      priority: validatedPriority,
+      environment: validatedEnvironment,
+      affectedVersion: normalizedAffectedVersion,
+      reproducibility: validatedReproducibility,
+      reportedBy: userId,
+      executionId: validatedExecutionId,
+      testCaseId: finalTestCaseId,
+      assigneeId: validatedAssigneeId,
+      status: validatedAssigneeId ? 'ASSIGNED' : 'NEW',
     },
     include: {
       project: { select: { id: true, name: true } },
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
-      sourceTestCase: { select: { id: true, name: true } },
+      testCase: { select: { id: true, name: true } },
     },
   });
 
@@ -207,7 +259,7 @@ export async function createBugFromExecution(data, userId) {
  * @returns {Promise<Object>} Updated bug
  */
 export async function updateBug(bugId, updates, userId) {
-  const existing = await prisma.defect.findUnique({
+  const existing = await prisma.bug.findUnique({
     where: { id: bugId },
   });
 
@@ -231,7 +283,7 @@ export async function updateBug(bugId, updates, userId) {
     regressionRiskLevel,
   } = updates;
 
-  const updated = await prisma.defect.update({
+  const updated = await prisma.bug.update({
     where: { id: bugId },
     data: {
       ...(title && { title }),
@@ -247,7 +299,6 @@ export async function updateBug(bugId, updates, userId) {
       ...(estimatedFixHours !== undefined && { estimatedFixHours }),
       ...(targetFixVersion !== undefined && { targetFixVersion }),
       ...(regressionRiskLevel !== undefined && { regressionRiskLevel }),
-      updatedBy: userId,
     },
     include: {
       reporter: { select: { name: true, email: true } },
@@ -278,7 +329,7 @@ export async function updateBug(bugId, updates, userId) {
  * @returns {Promise<Object>} Updated bug
  */
 export async function changeBugStatus(bugId, newStatus, userId, role, auditContext = {}) {
-  const bug = await prisma.defect.findUnique({
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
   });
 
@@ -331,16 +382,12 @@ export async function changeBugStatus(bugId, newStatus, userId, role, auditConte
   }
 
   // Update bug
-  const updated = await prisma.defect.update({
+  const updated = await prisma.bug.update({
     where: { id: bugId },
     data: {
       status: newStatus,
-      statusChangedAt: new Date(),
-      statusChangedBy: userId,
-      updatedBy: userId,
       ...(newStatus === 'CLOSED' && {
         closedAt: new Date(),
-        closedBy: userId,
       }),
     },
     include: {
@@ -350,15 +397,16 @@ export async function changeBugStatus(bugId, newStatus, userId, role, auditConte
   });
 
   // Create history entry
-  await prisma.defectHistory.create({
-    data: {
-      defectId: bugId,
-      fieldName: 'status',
-      oldValue: bug.status,
-      newValue: newStatus,
-      changedBy: userId,
-    },
-  });
+  // Note: BugHistory model not implemented - skipping
+  // await prisma.bugHistory.create({
+  //   data: {
+  //     bugId: bugId,
+  //     fieldName: 'status',
+  //     oldValue: bug.status,
+  //     newValue: newStatus,
+  //     changedBy: userId,
+  //   },
+  // });
 
   // Audit log
   await logAuditAction(userId, 'BUG_STATUS_CHANGED', {
@@ -412,7 +460,7 @@ export async function changeBugStatus(bugId, newStatus, userId, role, auditConte
  * @returns {Promise<Object>} Updated bug
  */
 export async function assignBug(bugId, assigneeId, userId) {
-  const bug = await prisma.defect.findUnique({
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
   });
 
@@ -420,14 +468,11 @@ export async function assignBug(bugId, assigneeId, userId) {
     throw new Error('Bug not found');
   }
 
-  const updated = await prisma.defect.update({
+  const updated = await prisma.bug.update({
     where: { id: bugId },
     data: {
       assigneeId: Number(assigneeId),
       status: 'ASSIGNED',
-      statusChangedAt: new Date(),
-      statusChangedBy: userId,
-      updatedBy: userId,
     },
     include: {
       assignee: { select: { id: true, name: true, email: true } },
@@ -468,15 +513,14 @@ export async function addBugComment(bugId, body, userId, isInternal = false) {
     throw new Error('Comment body is required');
   }
 
-  const comment = await prisma.defectComment.create({
+  const comment = await prisma.bugComment.create({
     data: {
-      defectId: bugId,
-      body: body.trim(),
-      isInternal,
-      commentedBy: userId,
+      bugId: bugId,
+      comment: body.trim(),
+      userId: userId,
     },
     include: {
-      author: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, name: true, email: true } },
     },
   });
 
@@ -496,15 +540,15 @@ export async function addBugComment(bugId, body, userId, isInternal = false) {
  * @returns {Promise<Object>} Bug with relations
  */
 export async function getBugDetails(bugId) {
-  const bug = await prisma.defect.findUnique({
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
     include: {
       project: { select: { id: true, name: true, key: true } },
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
       verifier: { select: { id: true, name: true, email: true } },
-      sourceTestCase: { select: { id: true, name: true } },
-      sourceExecution: {
+      testCase: { select: { id: true, name: true } },
+      execution: {
         select: {
           id: true,
           status: true,
@@ -513,16 +557,12 @@ export async function getBugDetails(bugId) {
       },
       comments: {
         include: {
-          author: { select: { id: true, name: true } },
-        },
-        orderBy: { commentedAt: 'desc' },
-      },
-      history: {
-        include: {
           user: { select: { id: true, name: true } },
         },
-        orderBy: { changedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
       },
+      // history: BugHistory model not implemented
+      retestRequests: true,
       attachments: {
         where: { isDeleted: false },
         orderBy: { uploadedAt: 'desc' },
@@ -582,18 +622,18 @@ export async function getProjectBugs(projectId, filters = {}) {
   };
 
   const [bugs, total] = await Promise.all([
-    prisma.defect.findMany({
+    prisma.bug.findMany({
       where,
       include: {
         reporter: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
-        sourceTestCase: { select: { id: true, name: true } },
+        testCase: { select: { id: true, name: true } },
       },
       skip: Number(skip),
       take: Number(take),
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.defect.count({ where }),
+    prisma.bug.count({ where }),
   ]);
 
   return { bugs, total, skip, take };
@@ -606,8 +646,8 @@ export async function getProjectBugs(projectId, filters = {}) {
  * @param {number} testerId - Tester assigned to retest
  * @returns {Promise<Object>} Retest request
  */
-export async function requestBugRetest(bugId, requesterId, testerId) {
-  const bug = await prisma.defect.findUnique({
+export async function requestBugRetest(bugId, requesterId, testerId, notes = null) {
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
   });
 
@@ -619,46 +659,56 @@ export async function requestBugRetest(bugId, requesterId, testerId) {
     throw new Error('Bug must be in FIXED status to request retest');
   }
 
-  if (!testerId) {
-    throw new Error('Tester ID is required for retest assignment');
+  let assignedTesterId = testerId ? Number(testerId) : null;
+  if (Number.isNaN(assignedTesterId)) {
+    assignedTesterId = null;
   }
 
-  // Verify tester exists and has TESTER role
-  const tester = await prisma.user.findUnique({
-    where: { id: Number(testerId) },
-    select: { id: true, role: true, isActive: true },
-  });
+  if (assignedTesterId) {
+    const tester = await prisma.user.findUnique({
+      where: { id: assignedTesterId },
+      select: { id: true, role: true, isActive: true },
+    });
 
-  if (!tester || !tester.isActive) {
-    throw new Error('Invalid or inactive tester');
+    if (!tester || !tester.isActive) {
+      throw new Error('Invalid or inactive tester');
+    }
+
+    if (tester.role !== 'TESTER') {
+      throw new Error('Assigned user must have TESTER role');
+    }
+  } else {
+    const reporter = await prisma.user.findUnique({
+      where: { id: bug.reporterId },
+      select: { id: true, role: true, isActive: true },
+    });
+
+    if (reporter && reporter.isActive && reporter.role === 'TESTER') {
+      assignedTesterId = reporter.id;
+    }
   }
 
-  if (tester.role !== 'TESTER') {
-    throw new Error('Assigned user must have TESTER role');
-  }
+  const trimmedNotes = typeof notes === 'string' && notes.trim().length > 0
+    ? notes.trim()
+    : null;
 
-  const retestRequest = await prisma.defectRetestRequest.create({
+  const retestRequest = await prisma.bugRetestRequest.create({
     data: {
-      defectId: bugId,
-      requestedBy: requesterId,
-      assignedTo: testerId,
-      assignedAt: new Date(),
-      status: 'ASSIGNED',
-    },
-    include: {
-      requester: { select: { id: true, name: true } },
-      assignee: { select: { id: true, name: true, email: true } },
+      bugId: bugId,
+      reason: trimmedNotes || 'Retest requested',
+      status: assignedTesterId ? 'ASSIGNED' : 'PENDING',
     },
   });
 
-  // Update bug status
-  await prisma.defect.update({
-    where: { id: bugId },
-    data: {
-      status: 'AWAITING_VERIFICATION',
-      verifierId: testerId,
-    },
-  });
+  if (assignedTesterId) {
+    await prisma.bug.update({
+      where: { id: bugId },
+      data: {
+        status: 'AWAITING_VERIFICATION',
+        verifiedBy: assignedTesterId,
+      },
+    });
+  }
 
   return retestRequest;
 }

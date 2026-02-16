@@ -98,10 +98,11 @@ export function useBug(bugId) {
       try {
         setSaving(true);
         setError('');
-        const response = await apiClient.post(`/api/bugs/${bugId}/retest-request`, {
-          notes,
-          assignToTesterId
-        });
+        const payload = { notes };
+        if (assignToTesterId) {
+          payload.testerId = assignToTesterId;
+        }
+        const response = await apiClient.post(`/api/bugs/${bugId}/retest-request`, payload);
         return response;
       } catch (err) {
         const message = err.message || 'Failed to request re-test';

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import { logError } from '../lib/errorLogger';
 
 export default function TestRunDetailPage() {
   const { testRunId } = useParams();
@@ -31,7 +32,7 @@ export default function TestRunDetailPage() {
       }
     } catch (err) {
       setError(err.message || 'Failed to load test run');
-      console.error(err);
+      logError(err, 'TestRunDetailPage.loadTestRunDetails');
     } finally {
       setLoading(false);
     }

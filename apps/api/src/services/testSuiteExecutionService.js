@@ -40,7 +40,7 @@ export async function executeSuite(suiteId, options, userId) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.isArchived) {
+  if (suite.isDeleted) {
     throw new Error('Cannot execute archived suite');
   }
 
@@ -185,38 +185,24 @@ export async function executeSuite(suiteId, options, userId) {
 export async function getSuiteRunById(suiteRunId) {
   const suiteRun = await prisma.testSuiteRun.findUnique({
     where: { id: Number(suiteRunId) },
-    include: {
+    select: {
+      id: true,
+      suiteId: true,
+      projectId: true,
+      name: true,
+      environment: true,
+      buildVersion: true,
+      status: true,
+      totalTestCases: true,
+      passedCount: true,
+      failedCount: true,
+      createdAt: true,
+      updatedAt: true,
       suite: {
         select: {
           id: true,
           name: true,
-          type: true,
           description: true,
-        },
-      },
-      executor: {
-        select: { id: true, name: true, email: true },
-      },
-      testRun: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-        },
-      },
-      executions: {
-        include: {
-          testCase: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              priority: true,
-            },
-          },
-        },
-        orderBy: {
-          startedAt: 'asc',
         },
       },
     },
@@ -251,22 +237,17 @@ export async function getSuiteExecutionHistory(suiteId, options = {}) {
       suiteId: Number(suiteId),
       ...(status && { status }),
     },
-    include: {
-      executor: {
-        select: { id: true, name: true, email: true },
-      },
-      testRun: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-        },
-      },
-      _count: {
-        select: {
-          executions: true,
-        },
-      },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      totalTestCases: true,
+      passedCount: true,
+      failedCount: true,
+      createdAt: true,
+      updatedAt: true,
+      environment: true,
+      buildVersion: true,
     },
     orderBy: {
       createdAt: 'desc',
@@ -378,7 +359,7 @@ export async function updateSuiteRunMetrics(suiteRunId) {
         });
       }
     } catch (error) {
-      console.error('Error triggering test failure notification:', error);
+      // Non-critical error, log but don't fail the operation
     }
   }
 
@@ -388,7 +369,7 @@ export async function updateSuiteRunMetrics(suiteRunId) {
       await indexTestExecution(execution.id, suite.projectId);
     }
   } catch (error) {
-    console.error('Error indexing test executions:', error);
+    // Non-critical error, log but don't fail the operation
   }
 
   return updated;

@@ -356,7 +356,12 @@ export async function bugRoutes(fastify) {
         };
 
         const result = await getProjectBugs(Number(projectId), filters);
-        reply.send(result);
+        reply.send({
+          data: result.bugs,
+          total: result.total,
+          skip: result.skip,
+          take: result.take,
+        });
       } catch (error) {
         console.error('Error fetching bugs:', error);
         reply.code(500).send({ error: error.message });
@@ -415,7 +420,7 @@ export async function bugRoutes(fastify) {
     async (request, reply) => {
       try {
         const { bugId } = request.params;
-        const { status } = request.body;
+        const status = request.body.status ?? request.body.newStatus;
         const userId = request.user.id;
         const userRole = request.user.role;
 
@@ -584,17 +589,15 @@ export async function bugRoutes(fastify) {
     async (request, reply) => {
       try {
         const { bugId } = request.params;
-        const { testerId } = request.body;
+        const testerId = request.body.testerId ?? request.body.assignToTesterId ?? null;
+        const notes = request.body.notes ?? request.body.note ?? null;
         const userId = request.user.id;
-
-        if (!testerId) {
-          return reply.code(400).send({ error: 'testerId is required' });
-        }
 
         const retestRequest = await requestBugRetest(
           Number(bugId),
           userId,
-          Number(testerId),
+          testerId ? Number(testerId) : null,
+          notes,
         );
 
         reply.code(201).send(retestRequest);
@@ -740,17 +743,18 @@ export async function bugRoutes(fastify) {
     async (request, reply) => {
       try {
         const { bugId } = request.params;
-        const { newStatus, reason } = request.body;
+        const status = request.body.status ?? request.body.newStatus;
+        const reason = request.body.reason;
         const userId = request.user.id;
         const userRole = request.user.role;
 
-        if (!newStatus) {
-          return reply.code(400).send({ error: 'newStatus is required' });
+        if (!status) {
+          return reply.code(400).send({ error: 'status is required' });
         }
 
         const updated = await changeBugStatus(
           Number(bugId),
-          newStatus,
+          status,
           userId,
           userRole,
           getClientContext(request),
@@ -760,7 +764,7 @@ export async function bugRoutes(fastify) {
         if (reason) {
           await addBugComment(
             Number(bugId),
-            `Status changed to ${newStatus}: ${reason}`,
+            `Status changed to ${status}: ${reason}`,
             userId,
             false,
           );
@@ -810,19 +814,15 @@ export async function bugRoutes(fastify) {
     async (request, reply) => {
       try {
         const { bugId } = request.params;
-        const { testerId, notes } = request.body;
+        const testerId = request.body.testerId ?? request.body.assignToTesterId ?? null;
+        const notes = request.body.notes ?? request.body.note ?? null;
         const userId = request.user.id;
-
-        if (!testerId) {
-          return reply.code(400).send({ 
-            error: 'testerId is required for retest request', 
-          });
-        }
 
         const retestRequest = await requestBugRetest(
           Number(bugId),
           userId,
-          Number(testerId),
+          testerId ? Number(testerId) : null,
+          notes,
         );
 
         // Add note as comment if provided
@@ -859,13 +859,12 @@ export async function bugRoutes(fastify) {
           return reply.code(400).send({ error: 'commitHash is required' });
         }
 
-        const updated = await prisma.defect.update({
+        const updated = await prisma.bug.update({
           where: { id: Number(bugId) },
           data: {
             fixedInCommitHash: commitHash,
             fixBranchName: branchName || null,
             codeReviewUrl: codeReviewUrl || null,
-            updatedBy: userId,
           },
           include: {
             reporter: { select: { id: true, name: true, email: true } },
@@ -873,27 +872,29 @@ export async function bugRoutes(fastify) {
           },
         });
 
-        // Create history entries
-        await Promise.all([
-          prisma.defectHistory.create({
-            data: {
-              defectId: Number(bugId),
-              fieldName: 'fixedInCommitHash',
-              oldValue: '',
-              newValue: commitHash,
-              changedBy: userId,
-            },
-          }),
-          branchName && prisma.defectHistory.create({
-            data: {
-              defectId: Number(bugId),
-              fieldName: 'fixBranchName',
-              oldValue: '',
-              newValue: branchName,
-              changedBy: userId,
-            },
-          }),
-        ]);
+        // Create history entries if they're needed
+        if (prisma.bugHistory) {
+          await Promise.all([
+            prisma.bugHistory.create({
+              data: {
+                bugId: Number(bugId),
+                fieldName: 'fixedInCommitHash',
+                oldValue: '',
+                newValue: commitHash,
+                changedBy: userId,
+              },
+            }),
+            branchName && prisma.bugHistory.create({
+              data: {
+                bugId: Number(bugId),
+                fieldName: 'fixBranchName',
+                oldValue: '',
+                newValue: branchName,
+                changedBy: userId,
+              },
+            }),
+          ]);
+        }
 
         reply.send(updated);
       } catch (error) {

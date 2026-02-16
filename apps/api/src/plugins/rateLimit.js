@@ -1,25 +1,84 @@
 /**
  * RATE LIMITING PLUGIN FOR FASTIFY
  * Protects against brute force and DDoS attacks
- * Uses in-memory storage (can be upgraded to Redis for distributed systems)
+ * Supports both in-memory and Redis storage for distributed systems
  */
 
+import { getRedisClient } from '../lib/socket.js';
+
+const REDIS_PREFIX = 'ratelimit:';
+
 /**
- * Simple in-memory rate limiter
+ * Rate limiter with Redis support for distributed systems
  */
 class RateLimiter {
   constructor(windowSize = 60000, maxRequests = 100) {
     this.windowSize = windowSize; // Time window in milliseconds
     this.maxRequests = maxRequests; // Max requests per window
-    this.requests = new Map(); // Key -> Array of timestamps
+    this.requests = new Map(); // Key -> Array of timestamps (in-memory fallback)
   }
 
   /**
    * Check if a request should be allowed
    * @param {string} key - Identifier (IP, user ID, etc)
-   * @returns {boolean|number} True if allowed, false if rate limited, or remaining time
+   * @returns {Promise<boolean|number>} True if allowed, or remaining time until reset
    */
-  isAllowed(key) {
+  async isAllowed(key) {
+    const redisClient = getRedisClient();
+
+    if (redisClient) {
+      return await this._isAllowedRedis(key, redisClient);
+    } else {
+      return this._isAllowedMemory(key);
+    }
+  }
+
+  /**
+   * Redis-based rate limiting
+   * @param {string} key - Identifier
+   * @param {object} redisClient - Redis client
+   * @returns {Promise<boolean|number>} True if allowed, or remaining time
+   */
+  async _isAllowedRedis(key, redisClient) {
+    try {
+      const now = Date.now();
+      const windowStart = now - this.windowSize;
+      const redisKey = `${REDIS_PREFIX}${key}`;
+
+      // Get all request timestamps in the current window
+      const requestsJson = await redisClient.get(redisKey);
+      let requestTimes = requestsJson ? JSON.parse(requestsJson) : [];
+
+      // Remove old requests outside the window
+      requestTimes = requestTimes.filter((time) => time > windowStart);
+
+      // Check if limit exceeded
+      if (requestTimes.length >= this.maxRequests) {
+        const oldestRequest = requestTimes[0];
+        const timeUntilReset = oldestRequest + this.windowSize - now;
+        return timeUntilReset;
+      }
+
+      // Add current request
+      requestTimes.push(now);
+
+      // Store in Redis with expiration (window size in seconds)
+      const expirySeconds = Math.ceil(this.windowSize / 1000);
+      await redisClient.set(redisKey, JSON.stringify(requestTimes), { ex: expirySeconds });
+
+      return true;
+    } catch (error) {
+      console.error('Redis rate limiting failed, using in-memory fallback:', error);
+      return this._isAllowedMemory(key);
+    }
+  }
+
+  /**
+   * In-memory rate limiting (fallback)
+   * @param {string} key - Identifier
+   * @returns {boolean|number} True if allowed, or remaining time
+   */
+  _isAllowedMemory(key) {
     const now = Date.now();
     const windowStart = now - this.windowSize;
 
@@ -50,14 +109,37 @@ class RateLimiter {
    * Reset rate limit for a key
    * @param {string} key - Identifier to reset
    */
-  reset(key) {
+  async reset(key) {
+    const redisClient = getRedisClient();
+
+    if (redisClient) {
+      try {
+        await redisClient.del(`${REDIS_PREFIX}${key}`);
+      } catch (error) {
+        console.error('Redis rate limit reset failed:', error);
+      }
+    }
+
     this.requests.delete(key);
   }
 
   /**
    * Clear all data (useful for testing)
    */
-  clear() {
+  async clear() {
+    const redisClient = getRedisClient();
+
+    if (redisClient) {
+      try {
+        const keys = await redisClient.keys(`${REDIS_PREFIX}*`);
+        if (keys.length > 0) {
+          await Promise.all(keys.map(key => redisClient.del(key)));
+        }
+      } catch (error) {
+        console.error('Redis rate limit clear failed:', error);
+      }
+    }
+
     this.requests.clear();
   }
 }
@@ -123,7 +205,7 @@ function createRateLimitMiddleware(limiterName = 'general') {
     const limiter = getLimiter(limiterName);
     const key = getRateLimitKey(request);
 
-    const result = limiter.isAllowed(key);
+    const result = await limiter.isAllowed(key);
 
     if (result !== true) {
       // Rate limited

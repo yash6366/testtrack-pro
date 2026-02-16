@@ -12,7 +12,10 @@ const prisma = getPrismaClient();
 // ============================================
 
 /**
- * Get execution trend report
+ * Get execution trend report showing pass/fail trends over time
+ * @param {number} projectId - Project ID to analyze
+ * @param {number} [weeks=8] - Number of weeks to include in report
+ * @returns {Promise<Object>} Weekly execution trends with pass rates and summary
  */
 export async function getExecutionTrendReport(projectId, weeks = 8) {
   const startDate = new Date();
@@ -80,7 +83,10 @@ export async function getExecutionTrendReport(projectId, weeks = 8) {
 }
 
 /**
- * Get flaky tests (inconsistent results)
+ * Get flaky tests with inconsistent pass/fail results
+ * @param {number} projectId - Project ID to analyze
+ * @param {number} [runsThreshold=5] - Minimum number of runs to consider
+ * @returns {Promise<Array>} List of flaky tests sorted by flake rate
  */
 export async function getFlakyTests(projectId, runsThreshold = 5) {
   const testCases = await prisma.testCase.findMany({
@@ -121,7 +127,10 @@ export async function getFlakyTests(projectId, runsThreshold = 5) {
 }
 
 /**
- * Get execution speed analysis
+ * Get execution speed analysis with statistics
+ * @param {number} projectId - Project ID to analyze
+ * @param {number} [days=30] - Number of days to include in analysis
+ * @returns {Promise<Object>} Execution duration statistics by type and percentiles
  */
 export async function getExecutionSpeedAnalysis(projectId, days = 30) {
   const startDate = new Date();
@@ -150,9 +159,10 @@ export async function getExecutionSpeedAnalysis(projectId, days = 30) {
   const failed = executions.filter((e) => e.status === 'FAILED').map((e) => e.durationSeconds);
 
   const percentile = (arr, p) => {
+    if (!arr || arr.length === 0) return 0;
     const sorted = arr.sort((a, b) => a - b);
     const index = Math.ceil((p / 100) * sorted.length) - 1;
-    return sorted[Math.max(0, index)];
+    return sorted[Math.max(0, index)] ?? 0;
   };
 
   return {
@@ -202,27 +212,27 @@ export async function getBugTrendAnalysis(projectId, weeks = 8) {
     weekEnd.setDate(weekEnd.getDate() + 7);
 
     const [created, resolved, reopened, closed] = await Promise.all([
-      prisma.defect.count({
+      prisma.bug.count({
         where: {
           projectId,
           createdAt: { gte: weekStart, lt: weekEnd },
         },
       }),
-      prisma.defect.count({
+      prisma.bug.count({
         where: {
           projectId,
           status: 'VERIFIED_FIXED',
           createdAt: { gte: weekStart, lt: weekEnd },
         },
       }),
-      prisma.defect.count({
+      prisma.bug.count({
         where: {
           projectId,
           status: 'REOPENED',
           createdAt: { gte: weekStart, lt: weekEnd },
         },
       }),
-      prisma.defect.count({
+      prisma.bug.count({
         where: {
           projectId,
           status: 'CLOSED',
@@ -256,7 +266,7 @@ export async function getReopenedBugsAnalysis(projectId, weeks = 4) {
   startDate.setDate(startDate.getDate() - (weeks * 7));
 
   const [totalBugs, reopenedBugs, assignments] = await Promise.all([
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         projectId,
         createdAt: { gte: startDate },
@@ -264,7 +274,7 @@ export async function getReopenedBugsAnalysis(projectId, weeks = 4) {
       },
     }),
 
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         projectId,
         status: 'REOPENED',
@@ -272,7 +282,7 @@ export async function getReopenedBugsAnalysis(projectId, weeks = 4) {
       },
     }),
 
-    prisma.defect.groupBy({
+    prisma.bug.groupBy({
       by: ['assigneeId'],
       where: {
         projectId,
@@ -314,7 +324,7 @@ export async function getReopenedBugsAnalysis(projectId, weeks = 4) {
  * Get bug age report (SLA tracking)
  */
 export async function getBugAgeReport(projectId) {
-  const openBugs = await prisma.defect.findMany({
+  const openBugs = await prisma.bug.findMany({
     where: {
       projectId,
       status: { notIn: ['CLOSED', 'VERIFIED_FIXED'] },
@@ -341,9 +351,10 @@ export async function getBugAgeReport(projectId) {
 
   const ages = bugsWithAge.map((b) => b.ageDays).sort((a, b) => a - b);
   const percentile = (arr, p) => {
+    if (!arr || arr.length === 0) return 0;
     const sorted = arr.sort((a, b) => a - b);
     const index = Math.ceil((p / 100) * sorted.length) - 1;
-    return sorted[Math.max(0, index)];
+    return sorted[Math.max(0, index)] ?? 0;
   };
 
   const slaBreaches = bugsWithAge.filter(
@@ -356,8 +367,8 @@ export async function getBugAgeReport(projectId) {
     ageDays: {
       p50: percentile(ages, 50),
       p95: percentile(ages, 95),
-      avg: Math.round(ages.reduce((a, b) => a + b, 0) / ages.length),
-      max: ages[ages.length - 1],
+      avg: ages.length > 0 ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : 0,
+      max: ages.length > 0 ? ages[ages.length - 1] : 0,
     },
     slaBreaches,
     oldestBug: bugsWithAge[bugsWithAge.length - 1],
@@ -376,8 +387,8 @@ export async function getBugAgeReport(projectId) {
 export async function getDefectDensity(projectId) {
   const [totalTestCases, totalBugs, bugsByModule] = await Promise.all([
     prisma.testCase.count({ where: { projectId, isDeleted: false } }),
-    prisma.defect.count({ where: { projectId } }),
-    prisma.defect.groupBy({
+    prisma.bug.count({ where: { projectId } }),
+    prisma.bug.groupBy({
       by: ['sourceTestCaseId'],
       where: { projectId },
       _count: { id: true },
@@ -439,7 +450,7 @@ export async function getTesterEfficiency(userId, weeks = 4) {
       },
       _sum: { durationSeconds: true },
     }),
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         reporterId: userId,
         createdAt: { gte: startDate },
@@ -494,7 +505,7 @@ export async function getTesterTeamComparison(projectId, weeks = 4) {
         },
         _avg: { durationSeconds: true },
       }),
-      prisma.defect.count({
+      prisma.bug.count({
         where: { reporterId: tester.executedBy, createdAt: { gte: startDate } },
       }),
       prisma.testExecution.count({
@@ -535,20 +546,20 @@ export async function getDeveloperFixQuality(userId, weeks = 8) {
   startDate.setDate(startDate.getDate() - (weeks * 7));
 
   const [assigned, resolved, reopened] = await Promise.all([
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         assigneeId: userId,
         createdAt: { gte: startDate },
       },
     }),
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         assigneeId: userId,
         status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
         createdAt: { gte: startDate },
       },
     }),
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         assigneeId: userId,
         status: 'REOPENED',
@@ -582,7 +593,7 @@ export async function getDeveloperResolutionTime(userId, weeks = 8) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - (weeks * 7));
 
-  const resolvedBugs = await prisma.defect.findMany({
+  const resolvedBugs = await prisma.bug.findMany({
     where: {
       assigneeId: userId,
       createdAt: { gte: startDate },
@@ -606,11 +617,12 @@ export async function getDeveloperResolutionTime(userId, weeks = 8) {
 
   const timesInMinutes = resolutionTimes.map((r) => r.minutes).sort((a, b) => a - b);
   const percentile = (arr, p) => {
+    if (!arr || arr.length === 0) return 0;
     const index = Math.ceil((p / 100) * arr.length) - 1;
-    return arr[Math.max(0, index)];
+    return arr[Math.max(0, index)] ?? 0;
   };
 
-  const getHours = (minutes) => (minutes / 60).toFixed(1);
+  const getHours = (minutes) => minutes > 0 ? (minutes / 60).toFixed(1) : 0;
 
   return {
     userId,

@@ -1,5 +1,16 @@
 import { signup, login, verifyEmail, logout, logoutAll, requestPasswordReset, resetPassword, changePassword } from '../services/authService.js';
 import { createAuthGuards } from '../lib/rbac.js';
+import {
+  getGoogleAuthorizationUrl,
+  getGitHubAuthorizationUrl,
+  exchangeGoogleCodeForToken,
+  exchangeGitHubCodeForToken,
+  findOrCreateOAuthUser,
+  getUserOAuthProviders,
+  linkOAuthProvider,
+  unlinkOAuthProvider,
+} from '../services/oauthService.js';
+import { logError } from '../lib/logger.js';
 
 // Swagger schemas
 const signupSchema = {
@@ -203,6 +214,214 @@ export async function authRoutes(fastify) {
     } catch (error) {
       fastify.log.error(error);
       reply.code(500).send({ error: error.message });
+    }
+  });
+
+  // ============ OAuth Routes ============
+
+  /**
+   * GET /api/auth/oauth/google
+   * Start Google OAuth flow
+   */
+  fastify.get('/api/auth/oauth/google', async (request, reply) => {
+    try {
+      const { redirectUrl } = request.query;
+      const { url, state } = getGoogleAuthorizationUrl(redirectUrl);
+      
+      reply.send({
+        authUrl: url,
+        state,
+        provider: 'GOOGLE',
+      });
+    } catch (error) {
+      logError('Error generating Google OAuth URL', error);
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/auth/oauth/google/callback
+   * Handle Google OAuth callback
+   */
+  fastify.get('/api/auth/oauth/google/callback', async (request, reply) => {
+    try {
+      const { code, redirectUrl } = request.query;
+
+      if (!code) {
+        return reply.code(400).send({ error: 'Authorization code is required' });
+      }
+
+      // Exchange code for tokens and get user info
+      const oauthData = await exchangeGoogleCodeForToken(code, redirectUrl);
+
+      // Find or create user
+      const { user, isNewUser } = await findOrCreateOAuthUser(oauthData);
+
+      // Generate JWT token
+      const token = fastify.jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        { expiresIn: '7d' }
+      );
+
+      reply.code(200).send({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          picture: user.picture,
+          isVerified: user.isVerified,
+        },
+        isNewUser,
+        provider: 'GOOGLE',
+      });
+    } catch (error) {
+      logError('Google OAuth callback error', error);
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/auth/oauth/github
+   * Start GitHub OAuth flow
+   */
+  fastify.get('/api/auth/oauth/github', async (request, reply) => {
+    try {
+      const { redirectUrl } = request.query;
+      const { url, state } = getGitHubAuthorizationUrl(redirectUrl);
+
+      reply.send({
+        authUrl: url,
+        state,
+        provider: 'GITHUB',
+      });
+    } catch (error) {
+      logError('Error generating GitHub OAuth URL', error);
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/auth/oauth/github/callback
+   * Handle GitHub OAuth callback
+   */
+  fastify.get('/api/auth/oauth/github/callback', async (request, reply) => {
+    try {
+      const { code, redirectUrl } = request.query;
+
+      if (!code) {
+        return reply.code(400).send({ error: 'Authorization code is required' });
+      }
+
+      // Exchange code for tokens and get user info
+      const oauthData = await exchangeGitHubCodeForToken(code, redirectUrl);
+
+      // Find or create user
+      const { user, isNewUser } = await findOrCreateOAuthUser(oauthData);
+
+      // Generate JWT token
+      const token = fastify.jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        { expiresIn: '7d' }
+      );
+
+      reply.code(200).send({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          picture: user.picture,
+          isVerified: user.isVerified,
+        },
+        isNewUser,
+        provider: 'GITHUB',
+      });
+    } catch (error) {
+      logError('GitHub OAuth callback error', error);
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/auth/oauth/providers
+   * Get OAuth providers linked to current user
+   */
+  fastify.get('/api/auth/oauth/providers', { preHandler: requireAuth }, async (request, reply) => {
+    try {
+      const providers = await getUserOAuthProviders(request.user.id);
+      reply.send(providers);
+    } catch (error) {
+      logError('Error fetching OAuth providers', error);
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/auth/oauth/link
+   * Link OAuth provider to existing authenticated user
+   */
+  fastify.post('/api/auth/oauth/link', { preHandler: requireAuth }, async (request, reply) => {
+    try {
+      const { provider, code, redirectUrl } = request.body;
+
+      if (!provider || !code) {
+        return reply.code(400).send({ error: 'Provider and authorization code are required' });
+      }
+
+      let oauthData;
+
+      if (provider.toUpperCase() === 'GOOGLE') {
+        oauthData = await exchangeGoogleCodeForToken(code, redirectUrl);
+      } else if (provider.toUpperCase() === 'GITHUB') {
+        oauthData = await exchangeGitHubCodeForToken(code, redirectUrl);
+      } else {
+        return reply.code(400).send({ error: 'Invalid OAuth provider' });
+      }
+
+      // Link provider to user
+      const oauthIntegration = await linkOAuthProvider(request.user.id, oauthData);
+
+      reply.code(200).send({
+        message: `${provider} account linked successfully`,
+        oauthIntegration,
+      });
+    } catch (error) {
+      logError('Error linking OAuth provider', error);
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  /**
+   * DELETE /api/auth/oauth/unlink/:provider
+   * Unlink OAuth provider from current user
+   */
+  fastify.delete('/api/auth/oauth/unlink/:provider', { preHandler: requireAuth }, async (request, reply) => {
+    try {
+      const { provider } = request.params;
+
+      if (!provider) {
+        return reply.code(400).send({ error: 'Provider is required' });
+      }
+
+      await unlinkOAuthProvider(request.user.id, provider.toUpperCase());
+
+      reply.send({
+        message: `${provider} account unlinked successfully`,
+      });
+    } catch (error) {
+      logError('Error unlinking OAuth provider', error);
+      reply.code(400).send({ error: error.message });
     }
   });
 }

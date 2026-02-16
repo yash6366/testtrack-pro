@@ -26,6 +26,12 @@ import analyticsRoutes from './routes/analytics.js';
 import { notificationRoutes } from './routes/notification.js';
 import { searchRoutes } from './routes/search.js';
 import webhookRoutes from './routes/webhooks.js';
+import milestoneRoutes from './routes/milestones.js';
+import testPlanRoutes from './routes/testPlans.js';
+import apiKeyRoutes from './routes/apiKeys.js';
+import githubRoutes from './routes/github.js';
+import scheduledReportsRoutes from './routes/scheduledReports.js';
+import healthRoutes from './routes/health.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -52,10 +58,8 @@ if (enableSwagger) {
   await setupSwagger(fastify);
 }
 
-// Health check
-fastify.get('/health', async () => {
-  return { status: 'ok' };
-});
+// Register health check routes
+fastify.register(healthRoutes);
 
 // Register routes
 fastify.register(authRoutes);
@@ -73,6 +77,11 @@ fastify.register(analyticsRoutes);
 fastify.register(notificationRoutes);
 fastify.register(searchRoutes);
 fastify.register(webhookRoutes);
+fastify.register(milestoneRoutes);
+fastify.register(testPlanRoutes);
+fastify.register(apiKeyRoutes);
+fastify.register(githubRoutes);
+fastify.register(scheduledReportsRoutes);
 
 // Start server
 const start = async () => {

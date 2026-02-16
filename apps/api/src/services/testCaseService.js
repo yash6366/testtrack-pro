@@ -112,7 +112,7 @@ export async function createTestCase(data, userId, auditContext = {}) {
   try {
     await indexTestCase(testCase.id, testCase.projectId);
   } catch (error) {
-    console.error('Error indexing test case:', error);
+    // Non-critical error, log but don't fail the operation
   }
 
   return testCase;

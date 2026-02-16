@@ -18,7 +18,7 @@ export default function BugCreationModal({
     description: initialDescription || '',
     severity: 'MAJOR',
     priority: 'P2',
-    environment: 'PROD',
+    environment: 'PRODUCTION',
     reproducibility: 'ALWAYS',
     affectedVersion: ''
   });
@@ -63,7 +63,7 @@ export default function BugCreationModal({
           priority: formData.priority,
           environment: formData.environment,
           reproducibility: formData.reproducibility,
-          affectedVersion: formData.affectedVersion,
+          affectedVersion: formData.affectedVersion || 'Unknown',
           executionId: executionId,
           testCaseId: testCaseId,
         }
@@ -88,7 +88,7 @@ export default function BugCreationModal({
         description: initialDescription || '',
         severity: 'MAJOR',
         priority: 'P2',
-        environment: 'PROD',
+          environment: 'PRODUCTION',
         reproducibility: 'ALWAYS',
         affectedVersion: ''
       });
@@ -138,10 +138,11 @@ export default function BugCreationModal({
 
               {/* Title */}
               <div>
-                <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                <label htmlFor="title" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                   Bug Title *
                 </label>
                 <input
+                  id="title"
                   type="text"
                   name="title"
                   value={formData.title}
@@ -154,10 +155,11 @@ export default function BugCreationModal({
 
               {/* Description */}
               <div>
-                <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                <label htmlFor="description" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                   Description
                 </label>
                 <textarea
+                  id="description"
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
@@ -170,10 +172,11 @@ export default function BugCreationModal({
               {/* Severity & Priority */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                  <label htmlFor="severity" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                     Severity *
                   </label>
                   <select
+                    id="severity"
                     name="severity"
                     value={formData.severity}
                     onChange={handleChange}
@@ -187,10 +190,11 @@ export default function BugCreationModal({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                  <label htmlFor="priority" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                     Priority *
                   </label>
                   <select
+                    id="priority"
                     name="priority"
                     value={formData.priority}
                     onChange={handleChange}
@@ -208,46 +212,50 @@ export default function BugCreationModal({
               {/* Environment & Reproducibility */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                  <label htmlFor="environment" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                     Environment *
                   </label>
                   <select
+                    id="environment"
                     name="environment"
                     value={formData.environment}
                     onChange={handleChange}
                     className="w-full p-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--foreground)] text-sm"
                   >
-                    <option value="PROD">Production</option>
+                    <option value="PRODUCTION">Production</option>
                     <option value="STAGING">Staging</option>
                     <option value="UAT">UAT</option>
-                    <option value="DEV">Development</option>
+                    <option value="DEVELOPMENT">Development</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                  <label htmlFor="reproducibility" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                     Reproducibility *
                   </label>
                   <select
+                    id="reproducibility"
                     name="reproducibility"
                     value={formData.reproducibility}
                     onChange={handleChange}
                     className="w-full p-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--foreground)] text-sm"
                   >
                     <option value="ALWAYS">Always</option>
-                    <option value="INTERMITTENT">Intermittent</option>
+                    <option value="OFTEN">Often (Intermittent)</option>
+                    <option value="SOMETIMES">Sometimes</option>
                     <option value="RARELY">Rarely</option>
-                    <option value="UNREPRODUCIBLE">Cannot Reproduce</option>
+                    <option value="CANNOT_REPRODUCE">Cannot Reproduce</option>
                   </select>
                 </div>
               </div>
 
               {/* Affected Version */}
               <div>
-                <label className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
+                <label htmlFor="affectedVersion" className="block font-semibold text-sm mb-1 text-[var(--foreground)]">
                   Affected Version
                 </label>
                 <input
+                  id="affectedVersion"
                   type="text"
                   name="affectedVersion"
                   value={formData.affectedVersion}

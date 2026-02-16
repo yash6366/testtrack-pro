@@ -35,18 +35,16 @@ export default function ProjectSelector({ onProjectChange }) {
     try {
       setLoading(true);
       
-      // Testers have a dedicated endpoint for their allocated projects
-      // For other roles, we might need to add similar endpoints
-      const isTester = String(user?.role || '').toUpperCase() === 'TESTER';
-      
-      if (isTester) {
-        const data = await apiClient.get('/api/tester/projects?take=100');
+      const normalizedRole = String(user?.role || '').toUpperCase();
+
+      if (normalizedRole === 'ADMIN') {
+        const data = await apiClient.get('/api/admin/projects?take=100');
         setProjects(data.projects || []);
-      } else {
-        // For now, other roles don't have project allocations
-        // Future: add endpoints for developers and other roles
-        setProjects([]);
+        return;
       }
+
+      const data = await apiClient.get('/api/tester/projects?take=100');
+      setProjects(data.projects || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
       setProjects([]);

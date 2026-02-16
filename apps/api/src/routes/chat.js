@@ -128,13 +128,11 @@ export async function chatRoutes(fastify) {
     const channel = await prisma.channel.create({
       data: {
         name: name.trim(),
-        type: 'CHANNEL',
-        createdById: userId,
         members: {
           create: [{ userId }],
         },
       },
-      select: { id: true, name: true, type: true },
+      select: { id: true, name: true },
     });
 
     return { channel };

@@ -40,7 +40,7 @@ export async function createProject(data, userId) {
   }
 
   // Check if project name already exists
-  const existingByName = await prisma.project.findUnique({
+  const existingByName = await prisma.project.findFirst({
     where: { name: name.trim() },
   });
 
@@ -70,11 +70,11 @@ export async function createProject(data, userId) {
       name: name.trim(),
       key: cleanedKey,
       description: description?.trim() || null,
-      modules: filteredModules,
-      createdBy: userId,
+      ownerId: userId,
+      status: 'ACTIVE',
     },
     include: {
-      user: {
+      owner: {
         select: {
           id: true,
           name: true,
@@ -93,7 +93,10 @@ export async function createProject(data, userId) {
     newValues: { name, key: cleanedKey, modules: filteredModules },
   });
 
-  return project;
+  return {
+    ...project,
+    modules: filteredModules,
+  };
 }
 
 /**
@@ -107,7 +110,7 @@ export async function getAllProjects(filters = {}) {
   const where = {};
 
   if (isActive !== undefined) {
-    where.isActive = isActive;
+    where.status = isActive ? 'ACTIVE' : 'INACTIVE';
   }
 
   if (search) {
@@ -122,15 +125,15 @@ export async function getAllProjects(filters = {}) {
     prisma.project.findMany({
       where,
       include: {
-        user: {
+        owner: {
           select: { id: true, name: true, email: true },
         },
         _count: {
           select: {
             testCases: true,
             testRuns: true,
-            defects: true,
-            projectUserAllocations: true,
+            bugs: true,
+            userAllocations: true,
             environments: true,
             customFields: true,
           },
@@ -144,7 +147,14 @@ export async function getAllProjects(filters = {}) {
   ]);
 
   return {
-    projects,
+    projects: projects.map(project => ({
+      ...project,
+      modules: project.modules || [],
+      _count: {
+        ...project._count,
+        projectUserAllocations: project._count?.userAllocations || 0,
+      },
+    })),
     pagination: { skip: Number(skip), take: Number(take), total },
   };
 }
@@ -158,7 +168,7 @@ export async function getProjectDetails(projectId) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
-      user: {
+      owner: {
         select: { id: true, name: true, email: true },
       },
       environments: {
@@ -168,7 +178,7 @@ export async function getProjectDetails(projectId) {
         where: { isActive: true },
         orderBy: { order: 'asc' },
       },
-      projectUserAllocations: {
+      userAllocations: {
         where: { isActive: true },
         include: {
           user: {
@@ -180,7 +190,10 @@ export async function getProjectDetails(projectId) {
         select: {
           testCases: true,
           testRuns: true,
-          defects: true,
+          bugs: true,
+          userAllocations: true,
+          environments: true,
+          customFields: true,
         },
       },
     },
@@ -190,7 +203,18 @@ export async function getProjectDetails(projectId) {
     throw new Error('Project not found');
   }
 
-  return project;
+  return {
+    ...project,
+    modules: project.modules || [],
+    projectUserAllocations: (project.userAllocations || []).map(allocation => ({
+      ...allocation,
+      role: allocation.projectRole,
+    })),
+    _count: {
+      ...project._count,
+      projectUserAllocations: project._count?.userAllocations || 0,
+    },
+  };
 }
 
 /**
@@ -202,6 +226,7 @@ export async function getProjectDetails(projectId) {
  */
 export async function updateProject(projectId, data, userId) {
   const { name, description, modules, isActive } = data;
+  let normalizedModules;
 
   // Validate project exists
   const project = await prisma.project.findUnique({
@@ -240,16 +265,17 @@ export async function updateProject(projectId, data, userId) {
   // Update modules if provided
   if (modules !== undefined && Array.isArray(modules)) {
     const validModules = ['UI', 'BACKEND', 'API', 'DATABASE', 'MOBILE', 'INTEGRATION', 'AUTOMATION', 'SECURITY', 'PERFORMANCE', 'OTHER'];
-    const filteredModules = modules
+    normalizedModules = modules
       .filter(m => typeof m === 'string')
       .map(m => m.toUpperCase())
       .filter(m => validModules.includes(m));
-    updateData.modules = filteredModules;
   }
 
   // Update status if provided
   if (isActive !== undefined) {
-    updateData.isActive = typeof isActive === 'string' ? isActive === 'true' : Boolean(isActive);
+    updateData.status = (typeof isActive === 'string' ? isActive === 'true' : Boolean(isActive))
+      ? 'ACTIVE'
+      : 'INACTIVE';
   }
 
   const updated = await prisma.project.update({
@@ -263,6 +289,11 @@ export async function updateProject(projectId, data, userId) {
   });
 
   // Log audit
+  const auditNewValues = {
+    ...updateData,
+    ...(normalizedModules ? { modules: normalizedModules } : {}),
+  };
+
   await logAuditAction(userId, 'PROJECT_UPDATED', {
     resourceType: 'PROJECT',
     resourceId: projectId,
@@ -272,10 +303,13 @@ export async function updateProject(projectId, data, userId) {
       acc[key] = project[key];
       return acc;
     }, {}),
-    newValues: updateData,
+    newValues: auditNewValues,
   });
 
-  return updated;
+  return {
+    ...updated,
+    modules: normalizedModules || updated.modules || [],
+  };
 }
 
 /**
@@ -420,6 +454,7 @@ export async function addProjectCustomField(projectId, data, userId) {
  */
 export async function allocateUserToProject(projectId, userId, data, adminId) {
   const { role = 'QA_ENGINEER' } = data;
+  const normalizedRole = String(role || '').toUpperCase();
 
   // Validate project exists
   const project = await prisma.project.findUnique({
@@ -441,7 +476,7 @@ export async function allocateUserToProject(projectId, userId, data, adminId) {
 
   // Validate role
   const validRoles = ['PROJECT_MANAGER', 'LEAD_TESTER', 'DEVELOPER', 'QA_ENGINEER', 'AUTOMATION_ENGINEER'];
-  if (!validRoles.includes(role.toUpperCase())) {
+  if (!validRoles.includes(normalizedRole)) {
     throw new Error(`Invalid project role. Must be one of: ${validRoles.join(', ')}`);
   }
 
@@ -456,14 +491,13 @@ export async function allocateUserToProject(projectId, userId, data, adminId) {
       },
     },
     update: {
-      role: role.toUpperCase(),
+      projectRole: normalizedRole,
       isActive: true,
-      unallocationDate: null,
     },
     create: {
       projectId,
       userId,
-      role: role.toUpperCase(),
+      projectRole: normalizedRole,
       isActive: true,
     },
     include: {
@@ -477,11 +511,14 @@ export async function allocateUserToProject(projectId, userId, data, adminId) {
   await logAuditAction(adminId, 'ADMIN_ACTION', {
     resourceType: 'PROJECT_USER_ALLOCATION',
     resourceId: allocation.id,
-    description: `Allocated user "${user.name}" to project "${project.name}" as ${role.toUpperCase()}`,
-    newValues: { userId, role: role.toUpperCase() },
+    description: `Allocated user "${user.name}" to project "${project.name}" as ${normalizedRole}`,
+    newValues: { userId, role: normalizedRole },
   });
 
-  return allocation;
+  return {
+    ...allocation,
+    role: allocation.projectRole,
+  };
 }
 
 /**
@@ -523,7 +560,6 @@ export async function deallocateUserFromProject(projectId, userId, adminId) {
     where: { id: allocation.id },
     data: {
       isActive: false,
-      unallocationDate: new Date(),
     },
   });
 
@@ -533,7 +569,7 @@ export async function deallocateUserFromProject(projectId, userId, adminId) {
     resourceId: allocation.id,
     description: `Removed user "${allocation.user.name}" from project "${allocation.project.name}"`,
     oldValues: { isActive: true },
-    newValues: { isActive: false, unallocationDate: new Date() },
+    newValues: { isActive: false },
   });
 
   return updated;
@@ -561,10 +597,13 @@ export async function getProjectUserAllocations(projectId) {
         select: { id: true, name: true, email: true },
       },
     },
-    orderBy: { allocationDate: 'desc' },
+    orderBy: { allocatedAt: 'desc' },
   });
 
-  return allocations;
+  return allocations.map(allocation => ({
+    ...allocation,
+    role: allocation.projectRole,
+  }));
 }
 
 /**

@@ -39,18 +39,18 @@ export async function getDeveloperAssignedBugs(userId, filters = {}) {
   };
 
   const [bugs, total] = await Promise.all([
-    prisma.defect.findMany({
+    prisma.bug.findMany({
       where,
       include: {
         reporter: { select: { id: true, name: true, email: true } },
-        sourceTestCase: { select: { id: true, name: true } },
+        testCase: { select: { id: true, name: true } },
         comments: { select: { id: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: Number(skip),
       take: Number(take),
     }),
-    prisma.defect.count({ where }),
+    prisma.bug.count({ where }),
   ]);
 
   return {
@@ -81,7 +81,7 @@ export async function updateFixDocumentation(bugId, fixData, userId) {
     fixedInVersion,
   } = fixData;
 
-  const bug = await prisma.defect.findUnique({
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
   });
 
@@ -123,7 +123,7 @@ export async function updateFixDocumentation(bugId, fixData, userId) {
     changes.fixedInVersion = fixedInVersion;
   }
 
-  const updated = await prisma.defect.update({
+  const updated = await prisma.bug.update({
     where: { id: bugId },
     data: {
       ...(fixStrategy && { fixStrategy }),
@@ -135,7 +135,6 @@ export async function updateFixDocumentation(bugId, fixData, userId) {
       ...(actualFixHours !== undefined && { actualFixHours }),
       ...(targetFixVersion && { targetFixVersion }),
       ...(fixedInVersion && { fixedInVersion }),
-      updatedBy: userId,
     },
     include: {
       reporter: { select: { id: true, name: true, email: true } },
@@ -144,17 +143,18 @@ export async function updateFixDocumentation(bugId, fixData, userId) {
   });
 
   // Create history entries for each changed field
-  for (const [fieldName, newValue] of Object.entries(changes)) {
-    await prisma.defectHistory.create({
-      data: {
-        defectId: bugId,
-        fieldName,
-        oldValue: String(bug[fieldName] || ''),
-        newValue: String(newValue),
-        changedBy: userId,
-      },
-    });
-  }
+  // Note: BugHistory model not implemented yet - skipping history tracking
+  // for (const [fieldName, newValue] of Object.entries(changes)) {
+  //   await prisma.bugHistory.create({
+  //     data: {
+  //       bugId: bugId,
+  //       fieldName,
+  //       oldValue: String(bug[fieldName] || ''),
+  //       newValue: String(newValue),
+  //       changedBy: userId,
+  //     },
+  //   });
+  // }
 
   // Audit log
   await logAuditAction(userId, 'BUG_FIX_DOCUMENTED', {
@@ -196,10 +196,10 @@ export async function getDeveloperMetrics(userId, options = {}) {
     fixQuality,
   ] = await Promise.all([
     // Total assigned bugs
-    prisma.defect.count({ where }),
+    prisma.bug.count({ where }),
 
     // Resolved bugs (VERIFIED_FIXED or CLOSED)
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         ...where,
         status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
@@ -207,7 +207,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
     }),
 
     // Waiting for verification (status FIXED, waiting for tester)
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         ...where,
         status: 'AWAITING_VERIFICATION',
@@ -215,7 +215,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
     }),
 
     // Reopened bugs (failed verification)
-    prisma.defect.count({
+    prisma.bug.count({
       where: {
         ...where,
         status: 'REOPENED',
@@ -223,7 +223,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
     }),
 
     // Get actual resolution times for resolved bugs
-    prisma.defect.findMany({
+    prisma.bug.findMany({
       where: {
         ...where,
         status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
@@ -236,7 +236,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
     }),
 
     // Get info about bugs with fix documentation
-    prisma.defect.findMany({
+    prisma.bug.findMany({
       where: {
         ...where,
         fixedInCommitHash: { not: null },
@@ -265,7 +265,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
     totalAssigned > 0 ? ((resolved / totalAssigned) * 100).toFixed(2) : 0;
 
   // Get bugs by status breakdown
-  const statusBreakdown = await prisma.defect.groupBy({
+  const statusBreakdown = await prisma.bug.groupBy({
     by: ['status'],
     where,
     _count: { id: true },
@@ -277,7 +277,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
   });
 
   // Get bugs by priority
-  const priorityBreakdown = await prisma.defect.groupBy({
+  const priorityBreakdown = await prisma.bug.groupBy({
     by: ['priority'],
     where,
     _count: { id: true },
@@ -303,7 +303,7 @@ export async function getDeveloperMetrics(userId, options = {}) {
       byStatus: statusMap,
       byPriority: priorityMap,
     },
-    recentBugs: await prisma.defect.findMany({
+    recentBugs: await prisma.bug.findMany({
       where,
       select: {
         id: true,
@@ -325,12 +325,12 @@ export async function getDeveloperMetrics(userId, options = {}) {
  * @returns {Promise<Object>} Bug with test execution details
  */
 export async function getBugWithTestDetails(bugId) {
-  const bug = await prisma.defect.findUnique({
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
     include: {
       reporter: { select: { id: true, name: true, email: true } },
       assignee: { select: { id: true, name: true, email: true } },
-      sourceExecution: {
+      execution: {
         include: {
           testCase: {
             select: {
@@ -345,7 +345,7 @@ export async function getBugWithTestDetails(bugId) {
           evidence: { where: { isDeleted: false } },
         },
       },
-      sourceTestCase: {
+      testCase: {
         select: {
           id: true,
           name: true,
@@ -362,24 +362,8 @@ export async function getBugWithTestDetails(bugId) {
         },
         orderBy: { commentedAt: 'desc' },
       },
-      history: {
-        select: {
-          id: true,
-          fieldName: true,
-          oldValue: true,
-          newValue: true,
-          changedBy: true,
-          changedAt: true,
-        },
-        take: 10,
-        orderBy: { changedAt: 'desc' },
-      },
-      retestRequests: {
-        include: {
-          assignee: { select: { id: true, name: true, email: true } },
-          requester: { select: { id: true, name: true, email: true } },
-        },
-      },
+      // history: BugHistory model not implemented
+      retestRequests: true,
     },
   });
 
@@ -426,7 +410,7 @@ export async function getTestCaseDetails(testCaseId) {
 export async function requestBugRetest(bugId, data, userId) {
   const { notes } = data;
 
-  const bug = await prisma.defect.findUnique({
+  const bug = await prisma.bug.findUnique({
     where: { id: bugId },
   });
 
@@ -443,41 +427,34 @@ export async function requestBugRetest(bugId, data, userId) {
   }
 
   // Update bug status to AWAITING_VERIFICATION
-  const updated = await prisma.defect.update({
+  const updated = await prisma.bug.update({
     where: { id: bugId },
     data: {
       status: 'AWAITING_VERIFICATION',
-      statusChangedAt: new Date(),
-      statusChangedBy: userId,
-      updatedBy: userId,
     },
   });
 
   // Create retest request
-  const retestRequest = await prisma.defectRetestRequest.create({
+  const retestRequest = await prisma.bugRetestRequest.create({
     data: {
-      defectId: bugId,
+      bugId: bugId,
       status: 'PENDING',
-      requestedBy: userId,
-      requestedAt: new Date(),
-      notes,
-    },
-    include: {
-      requester: { select: { id: true, name: true, email: true } },
+      reason: notes || 'Developer requested retest after fix',
     },
   });
 
   // Create history entry
-  await prisma.defectHistory.create({
-    data: {
-      defectId: bugId,
-      fieldName: 'status',
-      oldValue: 'FIXED',
-      newValue: 'AWAITING_VERIFICATION',
-      changedBy: userId,
-      changeReason: 'Developer requested retest after fix',
-    },
-  });
+  // Note: BugHistory model not implemented yet - skipping history tracking
+  // await prisma.bugHistory.create({
+  //   data: {
+  //     bugId: bugId,
+  //     fieldName: 'status',
+  //     oldValue: 'FIXED',
+  //     newValue: 'AWAITING_VERIFICATION',
+  //     changedBy: userId,
+  //     changeReason: 'Developer requested retest after fix',
+  //   },
+  // });
 
   // Audit log
   await logAuditAction(userId, 'BUG_RETEST_REQUESTED', {
@@ -511,25 +488,25 @@ export async function getDeveloperOverview(userId) {
     reopened,
     recent,
   ] = await Promise.all([
-    prisma.defect.count({ where }),
+    prisma.bug.count({ where }),
 
-    prisma.defect.count({
+    prisma.bug.count({
       where: { ...where, status: 'IN_PROGRESS' },
     }),
 
-    prisma.defect.count({
+    prisma.bug.count({
       where: { ...where, status: 'FIXED' },
     }),
 
-    prisma.defect.count({
+    prisma.bug.count({
       where: { ...where, status: 'AWAITING_VERIFICATION' },
     }),
 
-    prisma.defect.count({
+    prisma.bug.count({
       where: { ...where, status: 'REOPENED' },
     }),
 
-    prisma.defect.findMany({
+    prisma.bug.findMany({
       where,
       select: {
         id: true,
@@ -589,32 +566,32 @@ export async function generateDeveloperReport(userId, options = {}) {
   const metrics = await getDeveloperMetrics(userId, { startDate, endDate });
 
   // Get bugs grouped by status
-  const bugsByStatus = await prisma.defect.groupBy({
+  const bugsByStatus = await prisma.bug.groupBy({
     by: ['status'],
     where,
     _count: { id: true },
   });
 
   // Get bugs grouped by priority
-  const bugsByPriority = await prisma.defect.groupBy({
+  const bugsByPriority = await prisma.bug.groupBy({
     by: ['priority'],
     where,
     _count: { id: true },
   });
 
   // Get bugs grouped by severity
-  const bugsBySeverity = await prisma.defect.groupBy({
+  const bugsBySeverity = await prisma.bug.groupBy({
     by: ['severity'],
     where,
     _count: { id: true },
   });
 
   // Get top bugs (high priority/severity)
-  const criticalBugs = await prisma.defect.findMany({
+  const criticalBugs = await prisma.bug.findMany({
     where: {
       ...where,
       OR: [
-        { priority: 'CRITICAL' },
+        { priority: { in: ['P0', 'P1'] } },
         { severity: 'CRITICAL' },
       ],
     },
@@ -632,7 +609,7 @@ export async function generateDeveloperReport(userId, options = {}) {
   });
 
   // Get recently closed bugs
-  const recentlyResolved = await prisma.defect.findMany({
+  const recentlyResolved = await prisma.bug.findMany({
     where: {
       ...where,
       status: { in: ['VERIFIED_FIXED', 'CLOSED'] },
@@ -653,7 +630,7 @@ export async function generateDeveloperReport(userId, options = {}) {
   });
 
   // Get fix documentation stats
-  const docsStats = await prisma.defect.findMany({
+  const docsStats = await prisma.bug.findMany({
     where,
     select: {
       id: true,
@@ -736,7 +713,7 @@ export async function getDeveloperBugAnalytics(userId, filters = {}) {
   };
 
   // Get all bugs for analysis
-  const bugs = await prisma.defect.findMany({
+  const bugs = await prisma.bug.findMany({
     where,
     select: {
       id: true,
@@ -747,7 +724,6 @@ export async function getDeveloperBugAnalytics(userId, filters = {}) {
       severity: true,
       createdAt: true,
       closedAt: true,
-      statusChangedAt: true,
       actualFixHours: true,
       rootCauseCategory: true,
       environment: true,

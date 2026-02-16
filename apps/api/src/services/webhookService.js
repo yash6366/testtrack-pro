@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getPrismaClient } from '../lib/prisma.js';
+import { logError } from '../lib/logger.js';
 
 const prisma = getPrismaClient();
 
@@ -104,7 +105,7 @@ export async function triggerWebhook(event, payload) {
     const { projectId, ...eventData } = payload;
 
     if (!projectId) {
-      console.error('No projectId provided for webhook trigger');
+      logError('No projectId provided for webhook trigger', { event, payload });
       return;
     }
 
@@ -130,7 +131,7 @@ export async function triggerWebhook(event, payload) {
 
     await Promise.all(deliveryPromises);
   } catch (error) {
-    console.error('Error triggering webhooks:', error);
+    logError('Error triggering webhooks', { error, event, projectId: payload.projectId });
   }
 }
 
@@ -151,12 +152,12 @@ async function queueWebhookDelivery(webhookId, event, payload) {
 
     // Attempt immediate delivery (don't await - fire and forget)
     deliverWebhook(delivery.id).catch((err) => {
-      console.error(`Failed to deliver webhook ${delivery.id}:`, err);
+      logError('Failed to deliver webhook', { error: err, deliveryId: delivery.id, webhookId });
     });
 
     return delivery;
   } catch (error) {
-    console.error('Error queuing webhook delivery:', error);
+    logError('Error queuing webhook delivery', { error, webhookId, event });
     throw error;
   }
 }
@@ -311,13 +312,13 @@ export async function retryFailedDeliveries() {
 
     for (const delivery of pendingDeliveries) {
       await deliverWebhook(delivery.id).catch((err) => {
-        console.error(`Failed to deliver webhook ${delivery.id}:`, err);
+        logError('Failed to deliver webhook during retry', { error: err, deliveryId: delivery.id });
       });
     }
 
     return { processed: pendingDeliveries.length };
   } catch (error) {
-    console.error('Error retrying failed deliveries:', error);
+    logError('Error retrying failed webhook deliveries', { error });
     throw error;
   }
 }

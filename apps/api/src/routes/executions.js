@@ -376,6 +376,12 @@ export async function executionRoutes(fastify) {
           where: { executionId: Number(executionId) },
         });
 
+        if (allSteps.length === 0) {
+          return reply.code(400).send({
+            error: 'Execution has no steps to complete',
+          });
+        }
+
         const allCompleted = allSteps.every((s) =>
           ['PASSED', 'FAILED', 'SKIPPED', 'BLOCKED'].includes(s.status)
         );

@@ -1,10 +1,28 @@
 /**
  * STRUCTURED LOGGING SERVICE
  * Provides centralized, structured logging for the entire application
- * Outputs logs as JSON for easy parsing and analysis
+ * Outputs logs as JSON for easy parsing and analysis in production environments
  */
 
 let loggerInstance = null;
+
+/**
+ * Format log entry as JSON
+ * @param {string} level - Log level
+ * @param {string} message - Log message
+ * @param {object} data - Additional data
+ * @returns {object} Formatted log entry
+ */
+function formatJsonLog(level, message, data = {}) {
+  return {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    environment: process.env.NODE_ENV || 'development',
+    service: 'testtrack-api',
+    ...data,
+  };
+}
 
 /**
  * Initialize logger (should be called with Fastify logger)
@@ -21,10 +39,10 @@ export function initializeLogger(fastifyLogger) {
 function getLogger() {
   return (
     loggerInstance || {
-      info: (msg, data) => console.log(JSON.stringify({ level: 'info', message: msg, ...data })),
-      error: (msg, data) => console.error(JSON.stringify({ level: 'error', message: msg, ...data })),
-      warn: (msg, data) => console.warn(JSON.stringify({ level: 'warn', message: msg, ...data })),
-      debug: (msg, data) => console.log(JSON.stringify({ level: 'debug', message: msg, ...data })),
+      info: (msg, data) => console.log(JSON.stringify(formatJsonLog('info', msg, data))),
+      error: (msg, data) => console.error(JSON.stringify(formatJsonLog('error', msg, data))),
+      warn: (msg, data) => console.warn(JSON.stringify(formatJsonLog('warn', msg, data))),
+      debug: (msg, data) => console.log(JSON.stringify(formatJsonLog('debug', msg, data))),
     }
   );
 }

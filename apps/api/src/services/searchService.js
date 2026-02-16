@@ -23,7 +23,11 @@ export async function globalSearch(projectId, query, resourceTypes = ['TEST_CASE
   }
 
   const rawQuery = query.trim();
-  const searchQuery = rawQuery.toLowerCase();
+  // Sanitize search input to prevent special character issues
+  const sanitizeSearch = (input) => {
+    return input.replace(/[%_\\]/g, '\\$&');
+  };
+  const searchQuery = sanitizeSearch(rawQuery).toLowerCase();
   const results = {};
   const projectIdNum = Number(projectId);
 
@@ -90,7 +94,7 @@ export async function globalSearch(projectId, query, resourceTypes = ['TEST_CASE
       results.bugs = [];
     } else {
       const indexMap = new Map(ids.map((id, index) => [id, index]));
-      const bugs = await prisma.defect.findMany({
+      const bugs = await prisma.bug.findMany({
         where: {
           id: { in: ids },
           projectId: projectIdNum,
@@ -191,7 +195,7 @@ export async function getSearchSuggestions(projectId, query, resourceTypes = ['T
 
   // Bug suggestions
   if (resourceTypes.includes('BUG')) {
-    const bugs = await prisma.defect.findMany({
+    const bugs = await prisma.bug.findMany({
       where: {
         projectId: Number(projectId),
         OR: [
@@ -303,7 +307,7 @@ export async function rebuildSearchIndex(projectId) {
   }
 
   // Rebuild bug index
-  const bugs = await prisma.defect.findMany({
+  const bugs = await prisma.bug.findMany({
     where: { projectId: Number(projectId) },
     select: {
       id: true,

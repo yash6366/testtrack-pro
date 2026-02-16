@@ -6,6 +6,12 @@ function normalizeRole(role) {
   return typeof role === 'string' ? role.trim().toUpperCase() : '';
 }
 
+/**
+ * Verify JWT token and load user from database
+ * @param {Object} fastify - Fastify instance
+ * @param {string} token - JWT token to verify
+ * @returns {Promise<Object|null>} User object with id, email, role or null if invalid
+ */
 export async function verifyTokenAndLoadUser(fastify, token) {
   if (!token) {
     return null;
@@ -53,6 +59,11 @@ export async function verifyTokenAndLoadUser(fastify, token) {
   };
 }
 
+/**
+ * Create authentication guard middleware
+ * @param {Object} fastify - Fastify instance
+ * @returns {Object} Object containing requireAuth and requireRoles middleware
+ */
 export function createAuthGuards(fastify) {
   const requireAuth = async (request, reply) => {
     let payload;

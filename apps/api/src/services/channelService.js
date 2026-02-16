@@ -13,9 +13,8 @@ export async function ensureUniversalChannel() {
   const existing = await prisma.channel.findFirst({
     where: {
       name,
-      type: 'CHANNEL',
     },
-    select: { id: true, name: true, type: true },
+    select: { id: true, name: true },
   });
 
   if (existing) {
@@ -25,10 +24,8 @@ export async function ensureUniversalChannel() {
   const channel = await prisma.channel.create({
     data: {
       name,
-      type: 'CHANNEL',
-      createdById: null,
     },
-    select: { id: true, name: true, type: true },
+    select: { id: true, name: true },
   });
 
   return channel;

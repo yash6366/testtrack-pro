@@ -77,7 +77,6 @@ export async function adminRoutes(fastify) {
           isVerified: true,
           createdAt: true,
           lastLoginAt: true,
-          deactivatedAt: true,
         },
         orderBy: { createdAt: 'desc' },
         skip: Math.max(0, Number(skip) || 0),
@@ -120,7 +119,6 @@ export async function adminRoutes(fastify) {
         createdAt: true,
         updatedAt: true,
         lastLoginAt: true,
-        deactivatedAt: true,
       },
     });
 
@@ -331,8 +329,6 @@ export async function adminRoutes(fastify) {
       where: { id: targetUserId },
       data: {
         isActive: false,
-        deactivatedAt: new Date(),
-        deactivatedBy: request.user.id,
         tokenVersion: { increment: 1 }, // Invalidate all sessions
       },
       select: { id: true, email: true, isActive: true },
@@ -379,8 +375,6 @@ export async function adminRoutes(fastify) {
       where: { id: targetUserId },
       data: {
         isActive: true,
-        deactivatedAt: null,
-        deactivatedBy: null,
       },
       select: { id: true, email: true, isActive: true },
     });

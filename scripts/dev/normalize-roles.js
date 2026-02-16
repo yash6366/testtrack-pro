@@ -1,3 +1,14 @@
+/**
+ * Utility Script: Normalize User Roles
+ * 
+ * Data migration: Normalizes all user roles to uppercase
+ * Ensures consistency in role values (ADMIN, DEVELOPER, TESTER, etc.)
+ * 
+ * Usage:
+ *   cd apps/api
+ *   node ../../scripts/dev/normalize-roles.js
+ */
+
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

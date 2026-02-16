@@ -80,7 +80,7 @@ export async function indexTestCase(testCaseId, projectId) {
  */
 export async function indexBug(bugId, projectId) {
   try {
-    const bug = await prisma.defect.findUnique({
+    const bug = await prisma.bug.findUnique({
       where: { id: bugId },
       select: {
         id: true,
@@ -239,7 +239,7 @@ export async function rebuildProjectIndex(projectId) {
     }
 
     // Index all bugs
-    const bugs = await prisma.defect.findMany({
+    const bugs = await prisma.bug.findMany({
       where: { projectId },
       select: { id: true },
     });
@@ -315,7 +315,7 @@ export async function searchIndex(projectId, query, resourceTypes = ['TEST_CASE'
             select: { id: true, name: true, description: true, type: true, priority: true, status: true },
           });
         } else if (item.resourceType === 'BUG') {
-          resource = await prisma.defect.findUnique({
+          resource = await prisma.bug.findUnique({
             where: { id: item.resourceId },
             select: { id: true, bugNumber: true, title: true, severity: true, priority: true, status: true },
           });

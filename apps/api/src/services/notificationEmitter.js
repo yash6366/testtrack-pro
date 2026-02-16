@@ -5,6 +5,7 @@
  */
 
 import { getPrismaClient } from '../lib/prisma.js';
+import { logInfo, logError } from '../lib/logger.js';
 
 const prisma = getPrismaClient();
 
@@ -114,7 +115,7 @@ export async function broadcastToProject(projectId, notification) {
   };
 
   ioInstance.to(projectRoom).emit('project:update', payload);
-  console.log(`✓ Broadcast to project:${projectId}`);
+  logInfo('Broadcast notification to project', { projectId, notificationId: notification.id });
 }
 
 /**
@@ -133,7 +134,7 @@ export async function createDeliveryRecord(notificationId, channel, status = 'PE
       },
     });
   } catch (error) {
-    console.error(`✗ Failed to create delivery record:`, error);
+    logError('Failed to create delivery record', { error, notificationId, channel });
     throw error;
   }
 }
@@ -174,7 +175,7 @@ export async function updateDeliveryStatus(
       data,
     });
   } catch (error) {
-    console.error(`✗ Failed to update delivery status:`, error);
+    logError('Failed to update delivery status', { error, notificationId, channel, status });
     throw error;
   }
 }
@@ -196,7 +197,7 @@ export async function markNotificationOpened(notificationId) {
       updateDeliveryStatus(notificationId, 'IN_APP', 'OPENED'),
     ]);
   } catch (error) {
-    console.error(`✗ Failed to mark notification as opened:`, error);
+    logError('Failed to mark notification as opened', { error, notificationId });
   }
 }
 
@@ -218,7 +219,7 @@ export async function retryFailedDeliveries() {
       take: 100, // Limit to 100 per batch
     });
 
-    console.log(`→ Retrying ${failedDeliveries.length} failed deliveries`);
+    logInfo('Retrying failed notification deliveries', { count: failedDeliveries.length });
 
     let succeeded = 0;
     let failed = 0;
@@ -246,7 +247,7 @@ export async function retryFailedDeliveries() {
         }
         // EMAIL retry would be handled by email service
       } catch (error) {
-        console.error(`✗ Retry failed for delivery ${delivery.id}:`, error);
+        logError('Retry failed for delivery', { error, deliveryId: delivery.id, notificationId: delivery.notificationId });
         failed++;
 
         if (delivery.retryCount >= 2) {
@@ -264,7 +265,7 @@ export async function retryFailedDeliveries() {
 
     return { attempted: failedDeliveries.length, succeeded, failed };
   } catch (error) {
-    console.error('✗ Error in retryFailedDeliveries:', error);
+    logError('Error in retryFailedDeliveries', { error });
     throw error;
   }
 }
@@ -279,7 +280,7 @@ export async function getDeliveryStatus(notificationId) {
       where: { notificationId },
     });
   } catch (error) {
-    console.error(`✗ Failed to get delivery status:`, error);
+    logError('Failed to get delivery status', { error, notificationId });
     throw error;
   }
 }
@@ -299,10 +300,10 @@ export async function cleanupOldDeliveries() {
       },
     });
 
-    console.log(`✓ Cleaned up ${result.count} delivery records`);
+    logInfo('Cleaned up old delivery records', { count: result.count });
     return result;
   } catch (error) {
-    console.error('✗ Error cleaning up deliveries:', error);
+    logError('Error cleaning up deliveries', { error });
     throw error;
   }
 }

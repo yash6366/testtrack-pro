@@ -189,7 +189,32 @@ export async function developerRoutes(fastify) {
         const { bugId } = request.params;
         const userId = request.user.id;
 
-        const result = await requestBugRetest(Number(bugId), request.body, userId);
+        const {
+          testerId,
+          assignToTesterId,
+          note,
+          notes,
+          expectedOutcome,
+          testEnvironment,
+        } = request.body || {};
+
+        const combinedNotes = [
+          note && `Fix summary: ${note}`,
+          notes && `Notes: ${notes}`,
+          expectedOutcome && `Expected outcome: ${expectedOutcome}`,
+          testEnvironment && `Test environment: ${testEnvironment}`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+        const resolvedTesterId = testerId ?? assignToTesterId ?? null;
+
+        const result = await requestBugRetest(
+          Number(bugId),
+          userId,
+          resolvedTesterId,
+          combinedNotes || null,
+        );
 
         reply.code(201).send(result);
       } catch (error) {
@@ -545,16 +570,16 @@ function generateBugReportCSV(bugs) {
   ];
 
   const rows = bugs.map((bug) => [
-    bug.bugNumber,
-    escapeCSV(bug.title),
-    bug.status,
-    bug.priority,
-    bug.severity,
-    bug.reporter.name,
-    new Date(bug.createdAt).toISOString().split('T')[0],
-    escapeCSV(bug.fixStrategy || ''),
-    bug.fixedInCommitHash || '',
-    bug.codeReviewUrl || '',
+    bug?.bugNumber || 'N/A',
+    escapeCSV(bug?.title || ''),
+    bug?.status || 'Unknown',
+    bug?.priority || 'Unknown',
+    bug?.severity || 'Unknown',
+    bug?.reporter?.name || 'Unknown',
+    bug?.createdAt ? new Date(bug.createdAt).toISOString().split('T')[0] : 'Unknown',
+    escapeCSV(bug?.fixStrategy || ''),
+    bug?.fixedInCommitHash || '',
+    bug?.codeReviewUrl || '',
   ]);
 
   const csvLines = [

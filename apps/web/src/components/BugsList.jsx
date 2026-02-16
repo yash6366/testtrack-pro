@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiClient } from '@/lib/apiClient';
 
 export default function BugsList({ 
   onBugSelect, 
@@ -20,7 +21,13 @@ export default function BugsList({
   
   // Fetch bugs on mount and when filters change
   useEffect(() => {
-    fetchBugs();
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchBugs();
+    } else {
+      setLoading(false);
+      setError('Please login to view bugs');
+    }
   }, [filters, page]);
 
   const fetchBugs = async () => {
@@ -32,18 +39,11 @@ export default function BugsList({
         ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== '')),
       });
 
-      const response = await fetch(`/api/developer/bugs/assigned?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch bugs');
-      const data = await response.json();
-      setBugs(data.bugs);
+      const data = await apiClient.get(`/api/developer/bugs/assigned?${queryParams}`);
+      setBugs(data.bugs || []);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to fetch bugs');
       setBugs([]);
     } finally {
       setLoading(false);

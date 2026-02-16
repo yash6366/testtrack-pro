@@ -15,12 +15,12 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
     description: '',
     severity: 'MAJOR',
     priority: 'P2',
-    environment: 'PROD',
+    environment: 'PRODUCTION',
     reproducibility: 'ALWAYS',
     affectedVersion: '',
     projectId: localStorage.getItem('selectedProjectId') || '',
     sourceExecutionId: executionId,
-    sourceTestCaseId: testCaseId
+    sourceTestCaseId: testCaseId ? String(testCaseId) : ''
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +48,11 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
       return;
     }
 
+    if (!formData.sourceTestCaseId && !formData.sourceExecutionId) {
+      setError('Test case ID is required when no execution is linked');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError('');
@@ -62,7 +67,7 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
           environment: formData.environment,
           reproducibility: formData.reproducibility,
           affectedVersion: formData.affectedVersion || 'Unknown',
-          testCaseId: formData.sourceTestCaseId || undefined,
+          testCaseId: formData.sourceTestCaseId ? Number(formData.sourceTestCaseId) : undefined,
           executionId: formData.sourceExecutionId || undefined,
           assigneeId: undefined,
         }
@@ -155,6 +160,29 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
               />
             </div>
 
+            {/* Test Case ID */}
+            <div>
+              <label className="block font-semibold mb-2 text-[var(--foreground)]">
+                Test Case ID *
+              </label>
+              <input
+                type="number"
+                name="sourceTestCaseId"
+                value={formData.sourceTestCaseId}
+                onChange={handleChange}
+                placeholder="Enter the related test case ID"
+                className="w-full p-3 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--foreground)]"
+                min="1"
+                disabled={Boolean(testCaseId)}
+                required={!executionId}
+              />
+              {executionId && (
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  Linked execution provided; test case may auto-resolve if left blank.
+                </p>
+              )}
+            </div>
+
             {/* Description */}
             <div>
               <label className="block font-semibold mb-2 text-[var(--foreground)]">
@@ -220,10 +248,10 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
                   onChange={handleChange}
                   className="w-full p-3 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--foreground)]"
                 >
-                  <option value="PROD">Production</option>
+                  <option value="PRODUCTION">Production</option>
                   <option value="STAGING">Staging</option>
                   <option value="UAT">UAT</option>
-                  <option value="DEV">Development</option>
+                  <option value="DEVELOPMENT">Development</option>
                 </select>
               </div>
 
@@ -238,9 +266,10 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
                   className="w-full p-3 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-[var(--foreground)]"
                 >
                   <option value="ALWAYS">Always Reproducible</option>
-                  <option value="INTERMITTENT">Intermittent</option>
+                  <option value="OFTEN">Often (Intermittent)</option>
+                  <option value="SOMETIMES">Sometimes</option>
                   <option value="RARELY">Rarely Reproducible</option>
-                  <option value="UNREPRODUCIBLE">Cannot Reproduce</option>
+                  <option value="CANNOT_REPRODUCE">Cannot Reproduce</option>
                 </select>
               </div>
             </div>

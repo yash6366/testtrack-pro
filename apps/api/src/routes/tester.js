@@ -58,7 +58,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.get(
     '/api/tester/projects',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
         const userId = request.user.id;
@@ -66,8 +66,8 @@ export async function testerRoutes(fastify) {
 
         // Build where clause
         const where = {
-          isActive: true,
-          projectUserAllocations: {
+          status: 'ACTIVE',
+          userAllocations: {
             some: {
               userId,
               isActive: true,
@@ -91,16 +91,15 @@ export async function testerRoutes(fastify) {
               name: true,
               key: true,
               description: true,
-              modules: true,
               createdAt: true,
-              projectUserAllocations: {
+              userAllocations: {
                 where: {
                   userId,
                   isActive: true,
                 },
                 select: {
-                  role: true,
-                  allocationDate: true,
+                  projectRole: true,
+                  allocatedAt: true,
                 },
               },
             },
@@ -117,10 +116,10 @@ export async function testerRoutes(fastify) {
           name: project.name,
           key: project.key,
           description: project.description,
-          modules: project.modules,
+          modules: [],
           createdAt: project.createdAt,
-          myRole: project.projectUserAllocations[0]?.role || null,
-          joinedAt: project.projectUserAllocations[0]?.allocationDate || null,
+          myRole: project.userAllocations[0]?.projectRole || null,
+          joinedAt: project.userAllocations[0]?.allocatedAt || null,
         }));
 
         reply.send({
@@ -552,13 +551,13 @@ export async function testerRoutes(fastify) {
       ] = await Promise.all([
         // Total executions by this tester
         prisma.testExecution.count({
-          where: { executedBy: userId },
+          where: { userId },
         }),
 
         // Passed executions
         prisma.testExecution.count({
           where: {
-            executedBy: userId,
+            userId,
             status: 'PASSED',
           },
         }),
@@ -566,7 +565,7 @@ export async function testerRoutes(fastify) {
         // Failed executions
         prisma.testExecution.count({
           where: {
-            executedBy: userId,
+            userId,
             status: 'FAILED',
           },
         }),
@@ -574,7 +573,7 @@ export async function testerRoutes(fastify) {
         // Blocked executions
         prisma.testExecution.count({
           where: {
-            executedBy: userId,
+            userId,
             status: 'BLOCKED',
           },
         }),
@@ -588,16 +587,16 @@ export async function testerRoutes(fastify) {
         }),
 
         // Active bugs reported (using defectId as reference)
-        prisma.testExecution.count({
+        prisma.bug.count({
           where: {
-            executedBy: userId,
-            defectId: { not: null },
+            reportedBy: userId,
+            status: { in: ['OPEN', 'IN_PROGRESS', 'REOPEN'] },
           },
         }),
 
         // Recent 10 executions
         prisma.testExecution.findMany({
-          where: { executedBy: userId },
+          where: { userId },
           include: {
             testCase: {
               select: {
@@ -658,7 +657,7 @@ export async function testerRoutes(fastify) {
       // Get execution stats by status
       const executionsByStatus = await prisma.testExecution.groupBy({
         by: ['status'],
-        where: { executedBy: userId },
+        where: { userId },
         _count: { status: true },
       });
 
@@ -688,29 +687,29 @@ export async function testerRoutes(fastify) {
 
       const recentCompletedExecutions = await prisma.testExecution.findMany({
         where: {
-          executedBy: userId,
+          userId,
           completedAt: { not: null },
           startedAt: { gte: oneMonthAgo },
         },
         select: {
-          durationSeconds: true,
+          actualDurationSeconds: true,
         },
       });
 
       const avgExecutionTime = recentCompletedExecutions.length > 0
-        ? recentCompletedExecutions.reduce((sum, e) => sum + (e.durationSeconds || 0), 0) / recentCompletedExecutions.length
+        ? recentCompletedExecutions.reduce((sum, e) => sum + (e.actualDurationSeconds || 0), 0) / recentCompletedExecutions.length
         : 0;
 
       // Get test runs participated in
       const testRuns = await prisma.testRun.findMany({
         where: {
           executions: {
-            some: { executedBy: userId },
+            some: { userId },
           },
         },
         include: {
           executions: {
-            where: { executedBy: userId },
+            where: { userId },
             select: {
               id: true,
               status: true,
@@ -787,7 +786,7 @@ export async function testerRoutes(fastify) {
 
       const pendingExecutions = await prisma.testExecution.findMany({
         where: {
-          executedBy: userId,
+          userId,
           status: { in: ['BLOCKED', 'INCONCLUSIVE'] }, // Not completed
         },
         include: {
@@ -831,7 +830,7 @@ export async function testerRoutes(fastify) {
       const { skip = 0, take = 20, status, projectId } = request.query;
 
       const where = {
-        executedBy: userId,
+        userId,
         ...(status && { status }),
         ...(projectId && {
           testRun: {
@@ -927,13 +926,13 @@ export async function testerRoutes(fastify) {
       const [thisWeek, lastWeek] = await Promise.all([
         prisma.testExecution.count({
           where: {
-            executedBy: userId,
+            userId,
             startedAt: { gte: weekAgo },
           },
         }),
         prisma.testExecution.count({
           where: {
-            executedBy: userId,
+            userId,
             startedAt: { gte: twoWeeksAgo, lt: weekAgo },
           },
         }),

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import ThemeToggle from '@/components/ThemeToggle';
 import ProjectSelector from '@/components/ProjectSelector';
+import NotificationCenter from '@/components/NotificationCenter';
 
 export default function DashboardLayout({
   user,
@@ -11,12 +12,25 @@ export default function DashboardLayout({
   children,
 }) {
   const isTester = String(user?.role || '').toUpperCase() === 'TESTER';
+  const isDeveloper = String(user?.role || '').toUpperCase() === 'DEVELOPER';
+  const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN';
+  
   const navLinks = [
     { to: '/dashboard', label: 'Dashboard' },
     { to: '/test-suites', label: 'Test Suites' },
     { to: '/bugs', label: 'Bugs' },
+    { to: '/reports', label: 'Reports' },
     { to: '/chat', label: 'Chat' },
   ];
+  
+  // Add conditional links based on role
+  if (!isTester) {
+    navLinks.push({ to: '/analytics', label: 'Analytics' });
+  }
+  if (isAdmin || isDeveloper) {
+    navLinks.push({ to: '/api-keys', label: 'API Keys' });
+    navLinks.push({ to: '/integrations', label: 'Integrations' });
+  }
 
   return (
     <div className="min-h-screen">
@@ -44,6 +58,7 @@ export default function DashboardLayout({
           </div>
           <div className="flex items-center gap-4">
             {(isTester) && <ProjectSelector />}
+            <NotificationCenter />
             <div className="text-right">
               <p className="text-xs text-[var(--muted)]">Welcome back</p>
               <p className="text-sm font-semibold">{user.name}</p>

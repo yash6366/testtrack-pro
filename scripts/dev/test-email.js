@@ -1,3 +1,17 @@
+/**
+ * Utility Script: Test Email Service
+ * 
+ * Tests the Resend email service configuration
+ * 
+ * Usage:
+ *   cd apps/api
+ *   node ../../scripts/dev/test-email.js
+ * 
+ * Requirements:
+ *   - RESEND_API_KEY environment variable
+ *   - RESEND_FROM_EMAIL environment variable
+ */
+
 import { Resend } from 'resend';
 import { readFileSync } from 'fs';
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks';
+import { apiClient } from '@/lib/apiClient';
 import {
   BarChart3,
   Download,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export default function DeveloperReports() {
-  const { getAuthHeaders } = useAuth();
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [performanceReport, setPerformanceReport] = useState(null);
   const [bugAnalytics, setBugAnalytics] = useState(null);
@@ -25,32 +26,21 @@ export default function DeveloperReports() {
     loadReports();
   }, [dateRange]);
 
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
   const loadReports = async () => {
     setLoading(true);
     try {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - Number(dateRange));
 
-      const [perfRes, analyticsRes] = await Promise.all([
-        fetch(
-          `/api/developer/reports/performance?startDate=${startDate.toISOString()}`,
-          { headers: getAuthHeaders() }
-        ),
-        fetch(
-          `/api/developer/reports/bug-analytics?startDate=${startDate.toISOString()}`,
-          { headers: getAuthHeaders() }
-        ),
+      const [perfData, analyticsData] = await Promise.all([
+        apiClient.get(`/api/developer/reports/performance?startDate=${startDate.toISOString()}`),
+        apiClient.get(`/api/developer/reports/bug-analytics?startDate=${startDate.toISOString()}`),
       ]);
 
-      if (perfRes.ok) {
-        const perfData = await perfRes.json();
-        setPerformanceReport(perfData);
-      }
-
-      if (analyticsRes.ok) {
-        const analyticsData = await analyticsRes.json();
-        setBugAnalytics(analyticsData);
-      }
+      setPerformanceReport(perfData);
+      setBugAnalytics(analyticsData);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {
@@ -62,7 +52,7 @@ export default function DeveloperReports() {
     setExporting(true);
     try {
       const res = await fetch('/api/developer/reports/bugs/export', {
-        headers: getAuthHeaders(),
+        headers: authHeaders,
       });
 
       if (res.ok) {
@@ -89,7 +79,7 @@ export default function DeveloperReports() {
       const weeks = Math.ceil(Number(dateRange) / 7);
       const res = await fetch(
         `/api/developer/reports/performance/export?weeks=${weeks}`,
-        { headers: getAuthHeaders() }
+        { headers: authHeaders }
       );
 
       if (res.ok) {
@@ -118,7 +108,7 @@ export default function DeveloperReports() {
 
       const res = await fetch(
         `/api/developer/reports/bug-analytics/export?startDate=${startDate.toISOString()}`,
-        { headers: getAuthHeaders() }
+        { headers: authHeaders }
       );
 
       if (res.ok) {

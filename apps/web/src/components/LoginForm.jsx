@@ -53,7 +53,14 @@ export default function LoginForm({ message }) {
     const result = await login(email, password);
 
     if (result.success) {
-      navigate('/dashboard');
+      const normalizedEmail = String(result.user?.email || email).toLowerCase();
+      const normalizedRole = String(result.user?.role || '').toUpperCase();
+
+      if (normalizedEmail === 'admin@gmail.com' || normalizedRole === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } else {
       setFormError(result.error || 'Login failed');
     }

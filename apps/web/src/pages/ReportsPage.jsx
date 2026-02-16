@@ -130,7 +130,11 @@ export default function ReportsPage() {
   const loadPerformanceReport = async () => {
     try {
       setPerfLoading(true);
-      const response = await apiClient.get('/api/tester/reports/performance');
+      // Use role-specific endpoint
+      const endpoint = user?.role === 'DEVELOPER' 
+        ? '/api/developer/reports/performance'
+        : '/api/tester/reports/performance';
+      const response = await apiClient.get(endpoint);
       setPerformanceReport(response);
     } catch (err) {
       console.error('Failed to load performance report:', err);
@@ -496,19 +500,19 @@ export default function ReportsPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="p-4 bg-blue-50 dark:bg-blue-900 rounded">
                         <div className="text-sm text-blue-600">Total Executions</div>
-                        <div className="text-2xl font-bold text-blue-600">{performanceReport.metrics.totalExecutions}</div>
+                        <div className="text-2xl font-bold text-blue-600">{performanceReport?.metrics?.totalExecutions ?? 0}</div>
                       </div>
                       <div className="p-4 bg-purple-50 dark:bg-purple-900 rounded">
                         <div className="text-sm text-purple-600">Test Cases Created</div>
-                        <div className="text-2xl font-bold text-purple-600">{performanceReport.metrics.testCasesCreated}</div>
+                        <div className="text-2xl font-bold text-purple-600">{performanceReport?.metrics?.testCasesCreated ?? 0}</div>
                       </div>
                       <div className="p-4 bg-orange-50 dark:bg-orange-900 rounded">
                         <div className="text-sm text-orange-600">Bugs Reported</div>
-                        <div className="text-2xl font-bold text-orange-600">{performanceReport.metrics.bugsReported}</div>
+                        <div className="text-2xl font-bold text-orange-600">{performanceReport?.metrics?.bugsReported ?? 0}</div>
                       </div>
                       <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded">
                         <div className="text-sm text-gray-600 dark:text-gray-400">Avg Time (sec)</div>
-                        <div className="text-2xl font-bold">{Math.round(performanceReport.metrics.avgExecutionTimeSeconds)}</div>
+                        <div className="text-2xl font-bold">{performanceReport?.metrics?.avgExecutionTimeSeconds ? Math.round(performanceReport.metrics.avgExecutionTimeSeconds) : 0}</div>
                       </div>
                     </div>
                   </div>

@@ -1,10 +1,25 @@
+/**
+ * Utility Script: Create Admin & Test Users
+ * 
+ * Creates initial test users (admin, developer, tester) and general channel
+ * 
+ * Usage:
+ *   cd apps/api
+ *   node ../../scripts/dev/create-admin.js
+ * 
+ * Credentials:
+ *   Admin: admin@gmail.com / Admin@123
+ *   Developer: dev@test.com / test123
+ *   Tester: tester@test.com / test123
+ */
+
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const hashed = await bcrypt.hash('admin1234', 10);
+  const hashed = await bcrypt.hash('Admin@123', 10);
   
   const admin = await prisma.user.upsert({
     where: { email: 'admin@gmail.com' },
@@ -73,8 +88,6 @@ async function main() {
     update: {},
     create: {
       name: 'General',
-      type: 'CHANNEL',
-      createdById: admin.id,
       members: {
         create: [
           { userId: admin.id },

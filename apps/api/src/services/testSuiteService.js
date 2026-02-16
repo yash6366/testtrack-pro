@@ -19,15 +19,8 @@ export async function createTestSuite(data, userId) {
     projectId,
     name,
     description,
-    type = 'STATIC',
     status = 'ACTIVE',
     parentSuiteId,
-    filterTags = [],
-    filterTypes = [],
-    filterPriorities = [],
-    filterModules = [],
-    estimatedDurationMinutes,
-    executionOrder = 1,
   } = data;
 
   // Validate required fields
@@ -40,7 +33,7 @@ export async function createTestSuite(data, userId) {
     where: {
       projectId: Number(projectId),
       name,
-      isArchived: false,
+      isDeleted: false,
     },
   });
 
@@ -69,15 +62,8 @@ export async function createTestSuite(data, userId) {
       projectId: Number(projectId),
       name,
       description,
-      type,
       status,
       parentSuiteId: parentSuiteId ? Number(parentSuiteId) : null,
-      filterTags,
-      filterTypes,
-      filterPriorities,
-      filterModules,
-      estimatedDurationMinutes,
-      executionOrder,
       createdBy: userId,
     },
     include: {
@@ -116,7 +102,6 @@ export async function createTestSuite(data, userId) {
  */
 export async function getProjectTestSuites(projectId, filters = {}) {
   const {
-    type,
     status,
     parentSuiteId,
     includeArchived = false,
@@ -125,12 +110,11 @@ export async function getProjectTestSuites(projectId, filters = {}) {
 
   const where = {
     projectId: Number(projectId),
-    ...(type && { type }),
     ...(status && { status }),
     ...(parentSuiteId !== undefined && {
       parentSuiteId: parentSuiteId ? Number(parentSuiteId) : null,
     }),
-    ...(!includeArchived && { isArchived: false }),
+    ...(!includeArchived && { isDeleted: false }),
     ...(search && {
       OR: [
         { name: { contains: search, mode: 'insensitive' } },
@@ -152,13 +136,13 @@ export async function getProjectTestSuites(projectId, filters = {}) {
         select: {
           testCases: true,
           childSuites: true,
-          suiteRuns: true,
+          runs: true,
         },
       },
     },
     orderBy: [
-      { executionOrder: 'asc' },
       { createdAt: 'desc' },
+      { name: 'asc' },
     ],
   });
 
@@ -175,7 +159,7 @@ export async function getSuiteHierarchy(projectId) {
   const allSuites = await prisma.testSuite.findMany({
     where: {
       projectId: Number(projectId),
-      isArchived: false,
+      isDeleted: false,
     },
     include: {
       _count: {
@@ -185,7 +169,7 @@ export async function getSuiteHierarchy(projectId) {
         },
       },
     },
-    orderBy: { executionOrder: 'asc' },
+    orderBy: { createdAt: 'asc' },
   });
 
   // Build hierarchy
@@ -224,9 +208,6 @@ export async function getTestSuiteById(suiteId) {
       creator: {
         select: { id: true, name: true, email: true },
       },
-      archiver: {
-        select: { id: true, name: true, email: true },
-      },
       parentSuite: {
         select: { id: true, name: true },
       },
@@ -234,7 +215,6 @@ export async function getTestSuiteById(suiteId) {
         select: {
           id: true,
           name: true,
-          type: true,
           status: true,
           _count: {
             select: { testCases: true },
@@ -247,7 +227,7 @@ export async function getTestSuiteById(suiteId) {
       _count: {
         select: {
           testCases: true,
-          suiteRuns: true,
+          runs: true,
         },
       },
     },
@@ -276,22 +256,15 @@ export async function updateTestSuite(suiteId, data, userId) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.isArchived) {
+  if (suite.isDeleted) {
     throw new Error('Cannot update archived suite. Restore it first.');
   }
 
   const {
     name,
     description,
-    type,
     status,
     parentSuiteId,
-    filterTags,
-    filterTypes,
-    filterPriorities,
-    filterModules,
-    estimatedDurationMinutes,
-    executionOrder,
   } = data;
 
   // If changing parent, validate it
@@ -331,7 +304,7 @@ export async function updateTestSuite(suiteId, data, userId) {
       where: {
         projectId: suite.projectId,
         name,
-        isArchived: false,
+        isDeleted: false,
         id: { not: Number(suiteId) },
       },
     });
@@ -346,17 +319,10 @@ export async function updateTestSuite(suiteId, data, userId) {
     data: {
       ...(name !== undefined && { name }),
       ...(description !== undefined && { description }),
-      ...(type !== undefined && { type }),
       ...(status !== undefined && { status }),
       ...(parentSuiteId !== undefined && {
         parentSuiteId: parentSuiteId ? Number(parentSuiteId) : null,
       }),
-      ...(filterTags !== undefined && { filterTags }),
-      ...(filterTypes !== undefined && { filterTypes }),
-      ...(filterPriorities !== undefined && { filterPriorities }),
-      ...(filterModules !== undefined && { filterModules }),
-      ...(estimatedDurationMinutes !== undefined && { estimatedDurationMinutes }),
-      ...(executionOrder !== undefined && { executionOrder }),
     },
     include: {
       creator: {
@@ -448,23 +414,19 @@ export async function archiveTestSuite(suiteId, userId) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.isArchived) {
+  if (suite.isDeleted) {
     throw new Error('Suite is already archived');
   }
 
   const archived = await prisma.testSuite.update({
     where: { id: Number(suiteId) },
     data: {
-      isArchived: true,
-      archivedAt: new Date(),
-      archivedBy: userId,
+      isDeleted: true,
+      deletedAt: new Date(),
       status: 'ARCHIVED',
     },
     include: {
       creator: {
-        select: { id: true, name: true, email: true },
-      },
-      archiver: {
         select: { id: true, name: true, email: true },
       },
     },
@@ -499,16 +461,15 @@ export async function restoreTestSuite(suiteId, userId) {
     throw new Error('Test suite not found');
   }
 
-  if (!suite.isArchived) {
+  if (!suite.isDeleted) {
     throw new Error('Suite is not archived');
   }
 
   const restored = await prisma.testSuite.update({
     where: { id: Number(suiteId) },
     data: {
-      isArchived: false,
-      archivedAt: null,
-      archivedBy: null,
+      isDeleted: false,
+      deletedAt: null,
       status: 'ACTIVE',
     },
     include: {
@@ -560,7 +521,7 @@ export async function cloneTestSuite(suiteId, newName, userId, options = {}) {
     where: {
       projectId: sourceSuite.projectId,
       name: newName,
-      isArchived: false,
+      isDeleted: false,
     },
   });
 
@@ -576,13 +537,7 @@ export async function cloneTestSuite(suiteId, newName, userId, options = {}) {
       description: sourceSuite.description
         ? `${sourceSuite.description} (Cloned)`
         : 'Cloned suite',
-      type: sourceSuite.type,
       status: 'ACTIVE',
-      filterTags: sourceSuite.filterTags,
-      filterTypes: sourceSuite.filterTypes,
-      filterPriorities: sourceSuite.filterPriorities,
-      filterModules: sourceSuite.filterModules,
-      estimatedDurationMinutes: sourceSuite.estimatedDurationMinutes,
       createdBy: userId,
     },
   });
@@ -592,12 +547,10 @@ export async function cloneTestSuite(suiteId, newName, userId, options = {}) {
     const testCaseAssociations = sourceSuite.testCases.map((tc) => ({
       suiteId: clonedSuite.id,
       testCaseId: tc.testCaseId,
-      executionOrder: tc.executionOrder,
-      isMandatory: tc.isMandatory,
-      addedBy: userId,
+      order: tc.order,
     }));
 
-    await prisma.testSuiteCase.createMany({
+    await prisma.testSuiteTestCase.createMany({
       data: testCaseAssociations,
     });
   }
@@ -647,7 +600,7 @@ export async function addTestCasesToSuite(suiteId, testCaseIds, userId) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.isArchived) {
+  if (suite.isDeleted) {
     throw new Error('Cannot modify archived suite');
   }
 
@@ -674,23 +627,22 @@ export async function addTestCasesToSuite(suiteId, testCaseIds, userId) {
 
   // Get next execution order
   const maxOrder = suite.testCases.length > 0
-    ? Math.max(...suite.testCases.map((tc) => tc.executionOrder))
+    ? Math.max(...suite.testCases.map((tc) => tc.order))
     : 0;
 
   // Create associations
   const associations = newTestCaseIds.map((testCaseId, index) => ({
     suiteId: suite.id,
     testCaseId: Number(testCaseId),
-    executionOrder: maxOrder + index + 1,
-    addedBy: userId,
+    order: maxOrder + index + 1,
   }));
 
-  await prisma.testSuiteCase.createMany({
+  await prisma.testSuiteTestCase.createMany({
     data: associations,
   });
 
   // Fetch and return created associations
-  const created = await prisma.testSuiteCase.findMany({
+  const created = await prisma.testSuiteTestCase.findMany({
     where: {
       suiteId: suite.id,
       testCaseId: { in: newTestCaseIds.map((id) => Number(id)) },
@@ -726,11 +678,11 @@ export async function removeTestCasesFromSuite(suiteId, testCaseIds) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.isArchived) {
+  if (suite.isDeleted) {
     throw new Error('Cannot modify archived suite');
   }
 
-  const result = await prisma.testSuiteCase.deleteMany({
+  const result = await prisma.testSuiteTestCase.deleteMany({
     where: {
       suiteId: Number(suiteId),
       testCaseId: { in: testCaseIds.map((id) => Number(id)) },
@@ -758,19 +710,19 @@ export async function reorderTestCasesInSuite(suiteId, orderMap) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.isArchived) {
+  if (suite.isDeleted) {
     throw new Error('Cannot modify archived suite');
   }
 
   // Update execution order for each test case
   const updates = orderMap.map(({ testCaseId, executionOrder }) =>
-    prisma.testSuiteCase.updateMany({
+    prisma.testSuiteTestCase.updateMany({
       where: {
         suiteId: Number(suiteId),
         testCaseId: Number(testCaseId),
       },
       data: {
-        executionOrder: Number(executionOrder),
+        order: Number(executionOrder),
       },
     })
   );
@@ -795,15 +747,10 @@ export async function getTestCasesInSuite(suiteId, filters = {}) {
     throw new Error('Test suite not found');
   }
 
-  // For dynamic suites, evaluate criteria
-  if (suite.type === 'DYNAMIC') {
-    return await evaluateDynamicSuite(suiteId);
-  }
-
   // For static suites, return associated test cases
   const { priority, type, status } = filters;
 
-  const testCases = await prisma.testSuiteCase.findMany({
+  const testCases = await prisma.testSuiteTestCase.findMany({
     where: {
       suiteId: Number(suiteId),
       testCase: {
@@ -824,12 +771,9 @@ export async function getTestCasesInSuite(suiteId, filters = {}) {
           },
         },
       },
-      adder: {
-        select: { id: true, name: true, email: true },
-      },
     },
     orderBy: {
-      executionOrder: 'asc',
+      order: 'asc',
     },
   });
 
@@ -850,47 +794,7 @@ export async function evaluateDynamicSuite(suiteId) {
     throw new Error('Test suite not found');
   }
 
-  if (suite.type !== 'DYNAMIC') {
-    throw new Error('Suite is not a dynamic suite');
-  }
-
-  // Build dynamic filter criteria
-  const where = {
-    projectId: suite.projectId,
-    isDeleted: false,
-    AND: [
-      ...(suite.filterTypes.length > 0
-        ? [{ type: { in: suite.filterTypes } }]
-        : []),
-      ...(suite.filterPriorities.length > 0
-        ? [{ priority: { in: suite.filterPriorities } }]
-        : []),
-      ...(suite.filterModules.length > 0
-        ? [{ moduleArea: { in: suite.filterModules } }]
-        : []),
-      ...(suite.filterTags.length > 0
-        ? [{ tags: { hasSome: suite.filterTags } }]
-        : []),
-    ],
-  };
-
-  const testCases = await prisma.testCase.findMany({
-    where,
-    include: {
-      creator: {
-        select: { id: true, name: true, email: true },
-      },
-      _count: {
-        select: { steps: true },
-      },
-    },
-    orderBy: [
-      { priority: 'asc' },
-      { createdAt: 'desc' },
-    ],
-  });
-
-  return testCases;
+  throw new Error('Dynamic suites are not supported by the current schema');
 }
 
 /**
@@ -915,7 +819,7 @@ export async function getChildSuites(suiteId, recursive = false) {
     return await prisma.testSuite.findMany({
       where: {
         parentSuiteId: Number(suiteId),
-        isArchived: false,
+        isDeleted: false,
       },
       include: {
         _count: {
@@ -925,7 +829,7 @@ export async function getChildSuites(suiteId, recursive = false) {
           },
         },
       },
-      orderBy: { executionOrder: 'asc' },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -938,7 +842,7 @@ export async function getChildSuites(suiteId, recursive = false) {
     const children = await prisma.testSuite.findMany({
       where: {
         parentSuiteId: currentId,
-        isArchived: false,
+        isDeleted: false,
       },
       include: {
         _count: {

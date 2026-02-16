@@ -35,6 +35,14 @@ export function initializeRedis() {
 }
 
 /**
+ * Get the Redis client instance
+ * @returns {object|null} Redis client or null if not initialized
+ */
+export function getRedisClient() {
+  return redisClient;
+}
+
+/**
  * Setup Socket.IO server with role-based rooms
  * Rooms strategy:
  *   - room:<roomId> - for specific test/bug discussions

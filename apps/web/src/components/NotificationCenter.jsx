@@ -19,17 +19,15 @@ export default function NotificationCenter() {
 
     setLoading(true);
     try {
-      const response = await apiClient.get('/notifications?take=10', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications(response.data.notifications || []);
-      setUnreadCount(response.data.unreadCount || 0);
+      const response = await apiClient.get('/api/notifications?take=10');
+      setNotifications(response.notifications || []);
+      setUnreadCount(response.unreadCount || 0);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {
       setLoading(false);
     }
-  }, [user, token]);
+  }, [user]);
 
   // Fetch on mount and when opened
   useEffect(() => {
@@ -48,7 +46,7 @@ export default function NotificationCenter() {
   const handleMarkAsRead = async (notificationId) => {
     try {
       await apiClient.patch(
-        `/notifications/${notificationId}/read`,
+        `/api/notifications/${notificationId}/read`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -64,7 +62,7 @@ export default function NotificationCenter() {
   const handleMarkAllAsRead = async () => {
     try {
       await apiClient.patch(
-        '/notifications/mark-all-read',
+        '/api/notifications/mark-all-read',
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -78,7 +76,7 @@ export default function NotificationCenter() {
   const handleDelete = async (notificationId) => {
     try {
       await apiClient.delete(
-        `/notifications/${notificationId}`,
+        `/api/notifications/${notificationId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setNotifications(prev => prev.filter(n => n.id !== notificationId));

@@ -101,6 +101,9 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError(null);
 
+    // Clear any existing auth state before attempting login
+    clearAuth();
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
@@ -129,7 +132,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearAuth]);
 
   const logout = useCallback(async () => {
     setLoading(true);
