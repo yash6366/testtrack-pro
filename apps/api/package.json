@@ -17,7 +17,7 @@
     "@fastify/swagger-ui": "^4.2.0",
     "@fastify/websocket": "^8.3.1",
     "@prisma/client": "^5.7.0",
-    "@sentry/node": "^7.99.0",
+    "@sentry/node": "^10.39.0",
     "@shared/types": "workspace:*",
     "@socket.io/redis-adapter": "^8.3.0",
     "@upstash/redis": "^1.36.2",
