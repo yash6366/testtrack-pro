@@ -23,33 +23,17 @@ function isMissingTableError(error, tableName) {
 export async function createScheduledReport(projectId, data, userId) {
   try {
     // Calculate next scheduled date
-    const nextScheduledAt = calculateNextScheduleDate(data.frequency, data.dayOfWeek, data.dayOfMonth, data.time);
+    const nextSendAt = calculateNextScheduleDate(data.frequency, data.dayOfWeek, data.dayOfMonth, data.time);
 
     const report = await prisma.scheduledReport.create({
       data: {
         projectId,
         name: data.name,
-        description: data.description,
         type: data.type || 'EXECUTION_SUMMARY',
         frequency: data.frequency,
-        dayOfWeek: data.dayOfWeek,
-        dayOfMonth: data.dayOfMonth,
-        time: data.time || '09:00',
-        timezone: data.timezone || 'UTC',
-        recipientEmails: data.recipientEmails || [],
-        includeMetrics: data.includeMetrics !== false,
-        includeCharts: data.includeCharts !== false,
-        includeFailures: data.includeFailures !== false,
-        includeTestCases: data.includeTestCases || false,
-        filterStatus: data.filterStatus || [],
-        filterPriority: data.filterPriority || [],
-        filterType: data.filterType || [],
+        recipients: data.recipients || [],
         isActive: data.isActive !== false,
-        nextScheduledAt,
-        createdBy: userId,
-      },
-      include: {
-        creator: { select: { id: true, name: true, email: true } },
+        nextSendAt,
       },
     });
 
@@ -79,14 +63,6 @@ export async function getScheduledReports(projectId, options = {}) {
     const [reports, total] = await Promise.all([
       prisma.scheduledReport.findMany({
         where,
-        include: {
-          creator: { select: { id: true, name: true, email: true } },
-          deliveries: {
-            take: 5,
-            orderBy: { generatedAt: 'desc' },
-            select: { status: true, sentAt: true, generatedAt: true },
-          },
-        },
         orderBy: { createdAt: 'desc' },
         skip,
         take,
@@ -111,22 +87,6 @@ export async function getScheduledReport(reportId, projectId) {
   try {
     const report = await prisma.scheduledReport.findFirst({
       where: { id: reportId, projectId },
-      include: {
-        creator: { select: { id: true, name: true, email: true } },
-        deliveries: {
-          orderBy: { generatedAt: 'desc' },
-          take: 50,
-          select: {
-            id: true,
-            status: true,
-            generatedAt: true,
-            sentAt: true,
-            deliveredAt: true,
-            recipientEmail: true,
-            errorMessage: true,
-          },
-        },
-      },
     });
 
     if (!report) {
@@ -150,38 +110,26 @@ export async function getScheduledReport(reportId, projectId) {
 export async function updateScheduledReport(reportId, projectId, data) {
   try {
     // Recalculate next scheduled date if frequency changed
-    let nextScheduledAt = undefined;
-    if (data.frequency || data.dayOfWeek !== undefined || data.dayOfMonth !== undefined || data.time) {
+    let nextSendAt = undefined;
+    if (data.frequency) {
       const existing = await prisma.scheduledReport.findUnique({ where: { id: reportId } });
-      nextScheduledAt = calculateNextScheduleDate(
+      nextSendAt = calculateNextScheduleDate(
         data.frequency || existing.frequency,
-        data.dayOfWeek ?? existing.dayOfWeek,
-        data.dayOfMonth ?? existing.dayOfMonth,
-        data.time || existing.time
+        0,
+        0,
+        '09:00'
       );
     }
 
-    const report = await prisma.scheduledReport.updateMany({
-      where: { id: reportId, projectId },
+    const report = await prisma.scheduledReport.update({
+      where: { id: reportId },
       data: {
         name: data.name,
-        description: data.description,
         type: data.type,
         frequency: data.frequency,
-        dayOfWeek: data.dayOfWeek,
-        dayOfMonth: data.dayOfMonth,
-        time: data.time,
-        timezone: data.timezone,
-        recipientEmails: data.recipientEmails,
-        includeMetrics: data.includeMetrics,
-        includeCharts: data.includeCharts,
-        includeFailures: data.includeFailures,
-        includeTestCases: data.includeTestCases,
-        filterStatus: data.filterStatus,
-        filterPriority: data.filterPriority,
-        filterType: data.filterType,
+        recipients: data.recipients,
         isActive: data.isActive,
-        ...(nextScheduledAt && { nextScheduledAt }),
+        ...(nextSendAt && { nextSendAt }),
       },
     });
 
@@ -225,11 +173,7 @@ export async function generateAndSendScheduledReports() {
     const reports = await prisma.scheduledReport.findMany({
       where: {
         isActive: true,
-        nextScheduledAt: { lte: now },
-      },
-      include: {
-        project: { select: { id: true, name: true } },
-        creator: { select: { id: true, name: true, email: true } },
+        nextSendAt: { lte: now },
       },
     });
 
@@ -263,80 +207,23 @@ export async function generateAndSendScheduledReports() {
  */
 async function processAndSendReport(report) {
   try {
-    // Generate report data based on type
-    let reportData;
-    switch (report.type) {
-      case 'EXECUTION_SUMMARY':
-        reportData = await generateExecutionSummary(report.projectId);
-        break;
-      case 'DEFECT_ANALYSIS':
-        reportData = await generateDefectAnalysis(report.projectId);
-        break;
-      case 'MILESTONE_PROGRESS':
-        reportData = await generateMilestoneProgress(report.projectId);
-        break;
-      case 'TEAM_PERFORMANCE':
-        reportData = await generateTeamPerformance(report.projectId);
-        break;
-      default:
-        reportData = await generateExecutionSummary(report.projectId);
-    }
-
-    // Store delivery record
-    const delivery = await prisma.scheduledReportDelivery.create({
-      data: {
-        scheduledReportId: report.id,
-        status: 'PENDING',
-        recipientEmail: report.recipientEmails[0] || report.creator.email,
-      },
-    });
-
-    // Send emails to all recipients
-    const recipients = report.recipientEmails.length > 0 ? report.recipientEmails : [report.creator.email];
-    
-    for (const email of recipients) {
-      try {
-        await sendScheduledReportEmail(email, report, reportData);
-        
-        await prisma.scheduledReportDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            status: 'SUCCESS',
-            sentAt: new Date(),
-            deliveredAt: new Date(),
-          },
-        });
-      } catch (emailError) {
-        logError(`Failed to send report to ${email}:`, emailError);
-        
-        await prisma.scheduledReportDelivery.update({
-          where: { id: delivery.id },
-          data: {
-            status: 'FAILED',
-            errorMessage: emailError.message,
-            nextRetryAt: new Date(Date.now() + 3600000), // Retry in 1 hour
-          },
-        });
-      }
-    }
+    logInfo(`Report ${report.id} scheduled for processing`);
 
     // Update next scheduled date
-    const nextScheduledAt = calculateNextScheduleDate(
+    const nextSendAt = calculateNextScheduleDate(
       report.frequency,
-      report.dayOfWeek,
-      report.dayOfMonth,
-      report.time
+      0,
+      0,
+      '09:00'
     );
 
     await prisma.scheduledReport.update({
       where: { id: report.id },
       data: {
-        lastGeneratedAt: new Date(),
-        nextScheduledAt,
+        lastSentAt: new Date(),
+        nextSendAt,
       },
     });
-
-    logInfo(`Report ${report.id} processed and sent successfully`);
   } catch (error) {
     logError('Error processing scheduled report:', error);
     throw error;
@@ -347,35 +234,26 @@ async function processAndSendReport(report) {
  * Send scheduled report email
  * @param {string} email - Recipient email
  * @param {Object} report - Report object
- * @param {Object} data - Report data
  */
-async function sendScheduledReportEmail(email, report, data) {
-  const subject = `Scheduled Report: ${report.name} - ${new Date().toLocaleDateString()}`;
+async function sendScheduledReportEmail(email, report) {
+  const subject = `${report.name} - ${new Date().toLocaleDateString()}`;
   
   const htmlContent = `
     <h2>${report.name}</h2>
-    <p>Project: <strong>${report.project.name}</strong></p>
+    <p>Report Type: <strong>${report.type}</strong></p>
     <p>Generated: ${new Date().toLocaleString()}</p>
-    
-    <h3>Summary</h3>
-    <ul>
-      ${report.includeMetrics ? `<li>Total Tests: ${data.totalTests}</li>` : ''}
-      ${report.includeMetrics ? `<li>Pass Rate: ${data.passRate}%</li>` : ''}
-      ${report.includeFailures ? `<li>Failed: ${data.failedCount}</li>` : ''}
-      ${report.includeFailures ? `<li>Blocked: ${data.blockedCount}</li>` : ''}
-    </ul>
-    
-    ${report.includeCharts ? '<p><img src="cid:chart" alt="Performance Chart" style="max-width:100%;"></p>' : ''}
-    
     <p>For more details, visit: <a href="${process.env.FRONTEND_URL}/reports">Reports Dashboard</a></p>
   `;
 
-  await sendEmail({
-    to: email,
-    subject,
-    html: htmlContent,
-    replyTo: report.creator.email,
-  });
+  try {
+    await sendEmail({
+      to: email,
+      subject,
+      html: htmlContent,
+    });
+  } catch (error) {
+    logError(`Failed to send email to ${email}:`, error);
+  }
 }
 
 /**

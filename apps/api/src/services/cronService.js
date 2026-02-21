@@ -9,6 +9,7 @@ import { sendPendingDigests } from './digestService.js';
 import { retryFailedDeliveries, cleanupOldDeliveries } from './notificationEmitter.js';
 import { retryFailedDeliveries as retryFailedWebhooks } from './webhookService.js';
 import { generateAndSendScheduledReports } from './scheduledReportService.js';
+import { autoUnmuteExpiredMutes } from './chatAdminService.js';
 import { logInfo, logError, logWarn } from '../lib/logger.js';
 
 let scheduledJobs = [];
@@ -20,6 +21,7 @@ const jobFailureTracker = {
   webhookRetry: { consecutiveFailures: 0, lastFailure: null, lastSuccess: null },
   cleanup: { consecutiveFailures: 0, lastFailure: null, lastSuccess: null },
   scheduledReports: { consecutiveFailures: 0, lastFailure: null, lastSuccess: null },
+  autoUnmute: { consecutiveFailures: 0, lastFailure: null, lastSuccess: null },
 };
 
 const FAILURE_ALERT_THRESHOLD = 3; // Alert after N consecutive failures
@@ -66,18 +68,37 @@ function trackJobExecution(jobName, success, error = null) {
 function alertJobFailure(jobName, failureCount, error) {
   const message = `CRON JOB ALERT: ${jobName} has failed ${failureCount} times consecutively`;
   
-  logError(message, {
+  const alertData = {
     jobName,
     consecutiveFailures: failureCount,
     lastError: error?.message,
     stack: error?.stack,
     timestamp: new Date().toISOString(),
-  });
+  };
 
-  // TODO: Send alerts via email, Slack, PagerDuty, etc.
-  // Example: await sendAdminAlert({ subject: message, details: error });
-  
-  // For now, ensure it's visible in logs with special marker
+  logError(message, alertData);
+
+  // EXTERNAL ALERTING SYSTEM - To implement:
+  // 1. Email Alert: Send notification to admin@example.com
+  //    Implementation: Use sendEmail from emailService.js
+  //    Example: await sendEmail({ to: 'admin@example.com', subject: message, html: formatAlertHtml(alertData) });
+  // 
+  // 2. Slack Integration: Send to dedicated Slack channel
+  //    Installation: Use slack-sdk package
+  //    Example: await slackClient.chat.postMessage({ channel: '#alerts', text: message });
+  //
+  // 3. PagerDuty Integration: Create incident for critical failures
+  //    Installation: Use @pagerduty/pdjs package
+  //    Example: await pagerduty.incidents.create({ title: message, urgency: 'high' });
+  //
+  // 4. Database Logging: Store alerts in AdminAlert table for dashboard visibility
+  //    Example: await prisma.adminAlert.create({ data: { jobName, message, details: error?.message } });
+  //
+  // 5. Sentry Integration: Report to error tracking service
+  //    Example: Sentry.captureException(error, { tags: { jobName } });
+  //
+  // Priority: Email > Slack > PagerDuty (implement as needed)
+  // Current fallback: Ensure it's visible in logs with special marker
   console.error('🚨 CRITICAL:', message);
 }
 
@@ -163,6 +184,21 @@ export function initializeCronJobs() {
   });
   scheduledJobs.push(scheduledReportJob);
 
+  // Auto-unmute expired chat mutes every minute
+  const autoUnmuteJob = cron.schedule('* * * * *', async () => {
+    try {
+      const unmuted = await autoUnmuteExpiredMutes();
+      if (unmuted > 0) {
+        logInfo('Auto-unmute job completed', { unmuted });
+      }
+      trackJobExecution('autoUnmute', true);
+    } catch (error) {
+      logError('Error in auto-unmute job', { error });
+      trackJobExecution('autoUnmute', false, error);
+    }
+  });
+  scheduledJobs.push(autoUnmuteJob);
+
   logInfo('Cron jobs initialized', { count: scheduledJobs.length });
 }
 
@@ -223,6 +259,14 @@ export function getCronJobStatus() {
         consecutiveFailures: jobFailureTracker.scheduledReports.consecutiveFailures,
         lastSuccess: jobFailureTracker.scheduledReports.lastSuccess,
         lastFailure: jobFailureTracker.scheduledReports.lastFailure,
+      },
+      { 
+        name: 'Auto Unmute', 
+        schedule: '* * * * * (every minute)', 
+        active: scheduledJobs.length > 0,
+        consecutiveFailures: jobFailureTracker.autoUnmute.consecutiveFailures,
+        lastSuccess: jobFailureTracker.autoUnmute.lastSuccess,
+        lastFailure: jobFailureTracker.autoUnmute.lastFailure,
       },
     ],
   };

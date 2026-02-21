@@ -18,7 +18,7 @@ export async function evidenceRoutes(fastify) {
       try {
         params = parseEvidenceParams(request.params);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
         return;
       }
 
@@ -36,7 +36,7 @@ export async function evidenceRoutes(fastify) {
         });
         reply.send(payload);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -49,7 +49,7 @@ export async function evidenceRoutes(fastify) {
       try {
         params = parseEvidenceParams(request.params);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
         return;
       }
 
@@ -66,7 +66,7 @@ export async function evidenceRoutes(fastify) {
         });
         reply.code(201).send(evidence);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -79,7 +79,7 @@ export async function evidenceRoutes(fastify) {
       try {
         params = parseEvidenceParams(request.params);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
         return;
       }
 
@@ -102,7 +102,7 @@ export async function evidenceRoutes(fastify) {
       try {
         params = parseEvidenceParams(request.params);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
         return;
       }
 

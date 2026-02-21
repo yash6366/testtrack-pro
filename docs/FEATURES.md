@@ -1,19 +1,20 @@
 # TestTrack Pro - Features Guide
 
-Comprehensive guide to all features and capabilities of TestTrack Pro.
+Comprehensive guide to all features and capabilities of TestTrack Pro v0.6.2
 
 ## Table of Contents
 
 1. [Test Case Management](#test-case-management)
 2. [Test Execution](#test-execution)
-3. [Bug Tracking](#bug-tracking)
-4. [Test Suites](#test-suites)
-5. [Analytics & Reporting](#analytics--reporting)
-6. [Collaboration](#collaboration)
-7. [Real-time Features](#real-time-features)
-8. [Admin Features](#admin-features)
-9. [Search & Filtering](#search--filtering)
-10. [Integrations](#integrations)
+3. [Bug Tracking & Fix Documentation](#bug-tracking--fix-documentation)
+4. [Test Suites & Plans](#test-suites--plans)
+5. [Analytics & Metrics](#analytics--metrics)
+6. [Developer Features](#developer-features)
+7. [Collaboration](#collaboration)
+8. [Real-time Features](#real-time-features)
+9. [Admin Features](#admin-features)
+10. [Search & Filtering](#search--filtering)
+11. [Integrations](#integrations)
 
 ---
 
@@ -224,6 +225,37 @@ REOPENED ←──────────────────────�
 - Fix rate trends
 - Reopen rate
 
+### Bug Fix Documentation (NEW in v0.6.2)
+
+**Developers can now comprehensively document bug fixes:**
+
+**Document Fix Process:**
+- **Fix Strategy**: Explain the solution approach
+- **Root Cause Analysis**: Deep investigation findings
+- **Root Cause Categories**:
+  - DESIGN_DEFECT
+  - IMPLEMENTATION_ERROR
+  - ENVIRONMENTAL_ISSUE
+  - THIRD_PARTY_LIBRARY
+  - DOCUMENTATION_ERROR
+  - CONFIGURATION_ISSUE
+  - OTHER
+
+**Git Traceability:**
+- Record commit hash that fixed the bug
+- Link to branch name
+- Reference to code review/pull request
+
+**Version Tracking:**
+- Target version for the fix
+- Actual version containing the fix
+- Hours spent on the fix
+
+**Access Control:**
+- Developers can edit fix documentation after marking bug as FIXED
+- Testers can view (read-only) before verification
+- Admins can edit/delete
+
 ---
 
 ## Test Suites
@@ -275,11 +307,38 @@ Logical groupings of related test cases:
 
 ### Execution Analytics
 
-#### Execution Trends
+#### Execution Trends (8-week view)
 - Pass/Fail trends over time
-- Execution count by day/week/month
-- Average execution duration
-- Flaky test identification
+- Weekly execution counts
+- Pass rate percentage per week
+- Trend analysis (improving/declining)
+- Average pass rate over period
+
+#### Flaky Test Detection (NEW in v0.6.2)
+- Identifies tests with inconsistent pass/fail results
+- Calculates flake rate based on last N runs
+- Sorted by flake rate (highest first)
+- Shows:
+  - Flake percentage
+  - Recent run count
+  - Passed vs. failed runs
+  - Trend indicator
+
+**Example Flaky Test:**
+```
+Test: "User Login with Special Characters"
+Flake Rate: 45%
+Recent Runs: 10
+Passed: 6, Failed: 4
+Action: Review test for environmental dependencies
+```
+
+#### Execution Speed Analysis
+- Performance metrics for test executions
+- Percentiles: p50, p95, p99
+- Median execution time
+- Min/max duration
+- Separated by status (passed vs. failed)
 
 #### Test Coverage
 - Tests by module
@@ -295,11 +354,41 @@ Logical groupings of related test cases:
 - Bugs by assignee
 - Bug age distribution
 
-#### Bug Trends
-- New bugs per week
-- Bug fix rate
-- Bug reopen rate
-- Mean time to resolution (MTTR)
+#### Bug Trends (8-week view)
+- New bugs created per week
+- Resolved bugs per week
+- Reopened bugs count
+- Bug velocity (created vs. resolved)
+- Current velocity trend
+
+### Developer Analytics (NEW in v0.6.2)
+
+**Comprehensive Developer Performance Tracking:**
+
+**Individual Developer Metrics:**
+- Total bugs fixed
+- Average fix time (hours and days)
+- Average time to resolve (from assignment to closure)
+- Fix rate per week
+- Performance trend (improving, stable, declining)
+
+**Root Cause Analysis by Developer:**
+- Distribution of root cause categories for bugs they fixed
+- Average fix time per root cause type
+- Identification of most frequent bug types they encounter
+- Insight into which types of bugs take longest to resolve
+
+**Productivity Insights:**
+- Ranking of developers by bugs fixed
+- Ranking by average fix speed
+- Most frequent root causes per developer
+- Week-over-week improvement metrics
+
+**Team Comparison:**
+- Side-by-side developer metrics
+- Sortable by various metrics (bugs fixed, fix time, trend)
+- Identify high performers and bottlenecks
+- Benchmarking reference points
 
 ### Team Analytics
 
@@ -307,6 +396,8 @@ Logical groupings of related test cases:
 - **Quality**: Pass rate by tester
 - **Efficiency**: Average execution time
 - **Contribution**: Activity heatmap
+- **Fix Rate**: Bugs fixed by developer
+- **Developer Performance**: Developer productivity dashboard (v0.6.2)
 
 ### Custom Reports
 
@@ -388,9 +479,63 @@ Logical groupings of related test cases:
 
 ---
 
-## Real-time Features
+## Developer Features
 
-### Live Test Execution
+### Developer Dashboard
+
+**Personalized developer view:**
+- Quick stats on assigned bugs
+- Test cases in progress
+- Execution history
+- Fix documentation status
+- Activity summary
+
+### Bug Management for Developers
+
+**Developer responsibilities:**
+- ✅ View bugs assigned to them
+- ✅ View bug details and reproduction steps
+- ✅ Update bug status (IN_PROGRESS, FIXED, REOPENED)
+- ✅ Document fix details (NEW in v0.6.2)
+- ✅ Request re-testing after marking FIXED
+- ✅ Add comments and discuss with testers
+- ❌ Cannot execute test cases
+- ❌ Cannot modify test results
+- ❌ Cannot verify bug fixes (tester responsibility)
+
+### Fix Documentation
+
+**Document the complete fix:**
+1. Mark bug as FIXED in status dropdown
+2. Complete fix documentation modal:
+   - Describe your fix strategy
+   - Analyze root cause
+   - Select root cause category
+   - Reference git commit
+   - Link code review/PR
+   - Set target version
+   - Estimate hours spent
+3. Submit for tester verification
+
+**Benefits:**
+- Knowledge sharing
+- Traceability for audits
+- Future reference for similar issues
+- Accountability tracking
+
+### Developer Analytics
+
+**Personal metrics in dashboard:**
+- Bugs assigned to you (by status)
+- Average time to fix bugs
+- Fix rate (% resolved)
+- Test cases you created/modified
+- Response time to assignments
+- Contribution score
+
+---
+
+## Real-time Features
 
 **See execution progress live:**
 - Auto-refresh test status
@@ -447,16 +592,25 @@ Logical groupings of related test cases:
 | Feature | Admin | Tester | Developer | Guest |
 |---------|-------|--------|-----------|-------|
 | View Tests | ✅ | ✅ | ✅ | ✅ |
-| Create Tests | ✅ | ✅ | ❌ | ❌ |
+| Create Tests | ✅ | ✅ | ✅ | ❌ |
 | Execute Tests | ✅ | ✅ | ❌ | ❌ |
-| Delete Tests | ✅ | ✅ | ❌ | ❌ |
+| Edit Tests | ✅ | ✅ | ✅ | ❌ |
+| Delete Tests | ✅ | ✅ | ✅ | ❌ |
 | View Bugs | ✅ | ✅ | ✅ | ✅ |
 | Create Bugs | ✅ | ✅ | ✅ | ❌ |
 | Update Bugs | ✅ | ✅ | ✅ (assigned) | ❌ |
+| Document Fix | ✅ | ❌ | ✅ (assigned) | ❌ |
+| Verify Fix | ✅ | ✅ | ❌ | ❌ |
 | Delete Bugs | ✅ | ✅ | ❌ | ❌ |
 | Manage Users | ✅ | ❌ | ❌ | ❌ |
 | View Analytics | ✅ | ✅ | ✅ | ✅ |
 | Manage Projects | ✅ | ❌ | ❌ | ❌ |
+
+**Critical Security Notes:**
+- ⚠️ **ADMINS CANNOT EXECUTE TESTS** - Test execution is strictly for TESTERS
+- ⚠️ **ADMINS CANNOT MODIFY TEST RESULTS** - Result changes are strictly for TESTERS
+- ⚠️ **ADMINS CANNOT UPLOAD EVIDENCE** - Evidence collection is strictly for TESTERS
+- This prevents accidentally corrupting test results or creating false data
 
 ### Audit Logging
 

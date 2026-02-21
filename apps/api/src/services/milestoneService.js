@@ -349,7 +349,7 @@ export async function assignTestCasesToMilestone(milestoneId, testCaseIds, userI
   // Index each updated test case
   for (const tcId of testCaseIds) {
     try {
-      await indexTestCase(tcId);
+      await indexTestCase(tcId, milestone.projectId);
     } catch (e) {
       // Non-critical error, continue processing
     }

@@ -6,6 +6,7 @@
 import { getPrismaClient } from '../lib/prisma.js';
 import { logAuditAction } from './auditService.js';
 import { indexTestCase } from './searchIndexService.js';
+import { assertPermissionContext } from '../lib/policy.js';
 
 const prisma = getPrismaClient();
 
@@ -13,9 +14,17 @@ const prisma = getPrismaClient();
  * Create a new test case with steps
  * @param {Object} data - Test case data
  * @param {number} userId - Creator user ID
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Created test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function createTestCase(data, userId, auditContext = {}) {
+export async function createTestCase(data, userId, auditContext = {}, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:create', { projectId: data.projectId });
+
   const {
     projectId,
     name,
@@ -123,9 +132,12 @@ export async function createTestCase(data, userId, auditContext = {}) {
  * @param {number} testCaseId - Test case ID
  * @param {Object} updates - Fields to update
  * @param {number} userId - Editor user ID
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function updateTestCase(testCaseId, updates, userId, auditContext = {}) {
+export async function updateTestCase(testCaseId, updates, userId, auditContext = {}, permissionContext = null) {
   const existing = await prisma.testCase.findUnique({
     where: { id: testCaseId },
     include: {
@@ -136,6 +148,11 @@ export async function updateTestCase(testCaseId, updates, userId, auditContext =
   if (!existing) {
     throw new Error('Test case not found');
   }
+
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:edit', { projectId: existing.projectId });
 
   if (existing.isDeleted) {
     throw new Error('Cannot update deleted test case');
@@ -346,9 +363,12 @@ export async function updateTestCase(testCaseId, updates, userId, auditContext =
  * Soft-delete test case
  * @param {number} testCaseId - Test case ID
  * @param {number} userId - User deleting
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Deleted test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function deleteTestCase(testCaseId, userId, auditContext = {}) {
+export async function deleteTestCase(testCaseId, userId, auditContext = {}, permissionContext = null) {
   const existing = await prisma.testCase.findUnique({
     where: { id: testCaseId },
   });
@@ -356,6 +376,11 @@ export async function deleteTestCase(testCaseId, userId, auditContext = {}) {
   if (!existing) {
     throw new Error('Test case not found');
   }
+
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:delete', { projectId: existing.projectId });
 
   if (existing.isDeleted) {
     throw new Error('Test case already deleted');
@@ -390,9 +415,12 @@ export async function deleteTestCase(testCaseId, userId, auditContext = {}) {
  * Restore soft-deleted test case
  * @param {number} testCaseId - Test case ID
  * @param {number} userId - User restoring
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Restored test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function restoreTestCase(testCaseId, userId, auditContext = {}) {
+export async function restoreTestCase(testCaseId, userId, auditContext = {}, permissionContext = null) {
   const existing = await prisma.testCase.findUnique({
     where: { id: testCaseId },
   });
@@ -400,6 +428,11 @@ export async function restoreTestCase(testCaseId, userId, auditContext = {}) {
   if (!existing) {
     throw new Error('Test case not found');
   }
+
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:create', { projectId: existing.projectId });
 
   if (!existing.isDeleted) {
     throw new Error('Test case is not deleted');
@@ -432,9 +465,12 @@ export async function restoreTestCase(testCaseId, userId, auditContext = {}) {
  * @param {number} testCaseId - Source test case ID
  * @param {string} newName - New name for clone
  * @param {number} userId - User cloning
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Cloned test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function cloneTestCase(testCaseId, newName, userId, auditContext = {}) {
+export async function cloneTestCase(testCaseId, newName, userId, auditContext = {}, permissionContext = null) {
   const source = await prisma.testCase.findUnique({
     where: { id: testCaseId },
     include: {
@@ -447,6 +483,11 @@ export async function cloneTestCase(testCaseId, newName, userId, auditContext = 
   if (!source) {
     throw new Error('Source test case not found');
   }
+
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:clone', { projectId: source.projectId });
 
   if (source.isDeleted) {
     throw new Error('Cannot clone deleted test case');
@@ -609,9 +650,17 @@ export async function exportTestCasesToCSV(projectId) {
  * @param {number} projectId - Project ID
  * @param {string} csvContent - CSV file content
  * @param {number} userId - User importing
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Import results
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function importTestCasesFromCSV(projectId, csvContent, userId, auditContext = {}) {
+export async function importTestCasesFromCSV(projectId, csvContent, userId, auditContext = {}, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:import', { projectId });
+
   const lines = csvContent.trim().split('\n');
   
   if (lines.length < 2) {
@@ -735,9 +784,12 @@ function parseCSVRow(row) {
  * @param {number} testCaseId - Test case ID
  * @param {number} assignedToId - User ID to assign to
  * @param {number} userId - Current user ID
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function assignTestCase(testCaseId, assignedToId, userId, auditContext = {}) {
+export async function assignTestCase(testCaseId, assignedToId, userId, auditContext = {}, permissionContext = null) {
   const testCase = await prisma.testCase.findUnique({
     where: { id: testCaseId },
   });
@@ -745,6 +797,11 @@ export async function assignTestCase(testCaseId, assignedToId, userId, auditCont
   if (!testCase) {
     throw new Error('Test case not found');
   }
+
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:assign', { projectId: testCase.projectId });
 
   const updated = await prisma.testCase.update({
     where: { id: testCaseId },
@@ -774,9 +831,12 @@ export async function assignTestCase(testCaseId, assignedToId, userId, auditCont
  * @param {number} testCaseId - Test case ID
  * @param {number} ownedById - User ID to set as owner
  * @param {number} userId - Current user ID
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated test case
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function setTestCaseOwner(testCaseId, ownedById, userId, auditContext = {}) {
+export async function setTestCaseOwner(testCaseId, ownedById, userId, auditContext = {}, permissionContext = null) {
   const testCase = await prisma.testCase.findUnique({
     where: { id: testCaseId },
   });
@@ -784,6 +844,11 @@ export async function setTestCaseOwner(testCaseId, ownedById, userId, auditConte
   if (!testCase) {
     throw new Error('Test case not found');
   }
+
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testCase:assign', { projectId: testCase.projectId });
 
   const updated = await prisma.testCase.update({
     where: { id: testCaseId },

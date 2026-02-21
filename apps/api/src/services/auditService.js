@@ -21,6 +21,7 @@ const prisma = getPrismaClient();
  * @param {object} options.newValues - New state (JSON)
  * @param {string} options.ipAddress - Client IP
  * @param {string} options.userAgent - Client user agent
+ * @param {string} options.userAgent - Client user agent
  * @returns {Promise<object>} Created audit log record
  */
 export async function logAuditAction(performedByUserId, action, options = {}) {
@@ -37,6 +38,7 @@ export async function logAuditAction(performedByUserId, action, options = {}) {
         oldValues: options.oldValues ? JSON.stringify(options.oldValues) : null,
         newValues: options.newValues ? JSON.stringify(options.newValues) : null,
         ipAddress: options.ipAddress,
+        userAgent: options.userAgent,
       },
       select: {
         id: true,
@@ -129,6 +131,7 @@ export async function getAuditLogs(filters = {}) {
         oldValues: true, // JSON string
         newValues: true, // JSON string
         ipAddress: true,
+        userAgent: true,
         timestamp: true,
       },
       orderBy: { timestamp: 'desc' },
@@ -152,7 +155,7 @@ export async function getAuditLogs(filters = {}) {
       oldValues: log.oldValues ? JSON.parse(log.oldValues) : null,
       newValues: log.newValues ? JSON.parse(log.newValues) : null,
       ipAddress: log.ipAddress,
-      userAgent: null,
+      userAgent: log.userAgent,
       createdAt: log.timestamp,
     })),
     pagination: {

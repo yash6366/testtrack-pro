@@ -1,4 +1,4 @@
-import { signup, login, verifyEmail, logout, logoutAll, requestPasswordReset, resetPassword, changePassword } from '../services/authService.js';
+import { signup, login, verifyEmail, logout, logoutAll, refreshSession, requestPasswordReset, resetPassword, changePassword } from '../services/authService.js';
 import { createAuthGuards } from '../lib/rbac.js';
 import {
   getGoogleAuthorizationUrl,
@@ -62,6 +62,7 @@ const loginSchema = {
       type: 'object',
       properties: {
         token: { type: 'string', description: 'JWT authentication token' },
+        refreshToken: { type: 'string', description: 'Refresh token for session rotation' },
         user: {
           type: 'object',
           properties: {
@@ -81,10 +82,45 @@ const loginSchema = {
   },
 };
 
+const refreshSchema = {
+  tags: ['auth'],
+  summary: 'Refresh access token',
+  description: 'Rotate refresh token and issue a new access token',
+  body: {
+    type: 'object',
+    required: ['refreshToken'],
+    properties: {
+      refreshToken: { type: 'string' },
+    },
+  },
+  response: {
+    200: {
+      description: 'Token refreshed successfully',
+      type: 'object',
+      properties: {
+        token: { type: 'string' },
+        refreshToken: { type: 'string' },
+        user: { type: 'object' },
+      },
+    },
+    400: {
+      description: 'Refresh token error',
+      type: 'object',
+      properties: { error: { type: 'string' } },
+    },
+  },
+};
+
 const logoutSchema = {
   tags: ['auth'],
   summary: 'Logout current session',
   description: 'Invalidate current JWT token',
+  body: {
+    type: 'object',
+    properties: {
+      refreshToken: { type: 'string' },
+    },
+  },
   response: {
     200: {
       description: 'Logged out successfully',
@@ -97,6 +133,13 @@ const logoutSchema = {
 
 export async function authRoutes(fastify) {
   const { requireAuth } = createAuthGuards(fastify);
+
+  function getClientContext(request) {
+    return {
+      ipAddress: request.ip || request.socket?.remoteAddress || null,
+      userAgent: request.headers['user-agent'] || null,
+    };
+  }
   
   fastify.post('/api/auth/signup', { schema: signupSchema }, async (request, reply) => {
     try {
@@ -104,17 +147,28 @@ export async function authRoutes(fastify) {
       reply.code(201).send(result);
     } catch (error) {
       fastify.log.error(error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
   fastify.post('/api/auth/login', { schema: loginSchema }, async (request, reply) => {
     try {
-      const result = await login(fastify, request.body);
+      const result = await login(fastify, request.body, getClientContext(request));
       reply.code(200).send(result);
     } catch (error) {
       fastify.log.error(error);
       reply.code(401).send({ error: error.message });
+    }
+  });
+
+  fastify.post('/api/auth/refresh', { schema: refreshSchema }, async (request, reply) => {
+    try {
+      const { refreshToken } = request.body;
+      const result = await refreshSession(fastify, refreshToken, getClientContext(request));
+      reply.code(200).send(result);
+    } catch (error) {
+      fastify.log.error(error);
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -128,7 +182,7 @@ export async function authRoutes(fastify) {
       reply.code(200).send(result);
     } catch (error) {
       fastify.log.error(error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -142,7 +196,7 @@ export async function authRoutes(fastify) {
       reply.code(200).send(result);
     } catch (error) {
       fastify.log.error(error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -174,7 +228,7 @@ export async function authRoutes(fastify) {
       reply.code(200).send(result);
     } catch (error) {
       fastify.log.error(error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -190,7 +244,7 @@ export async function authRoutes(fastify) {
       reply.code(200).send(result);
     } catch (error) {
       fastify.log.error(error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -199,7 +253,8 @@ export async function authRoutes(fastify) {
     preHandler: requireAuth 
   }, async (request, reply) => {
     try {
-      const result = await logout(request.user.id);
+      const { refreshToken } = request.body || {};
+      const result = await logout(request.user.id, refreshToken);
       reply.code(200).send(result);
     } catch (error) {
       fastify.log.error(error);
@@ -235,7 +290,7 @@ export async function authRoutes(fastify) {
       });
     } catch (error) {
       logError('Error generating Google OAuth URL', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -282,7 +337,7 @@ export async function authRoutes(fastify) {
       });
     } catch (error) {
       logError('Google OAuth callback error', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -302,7 +357,7 @@ export async function authRoutes(fastify) {
       });
     } catch (error) {
       logError('Error generating GitHub OAuth URL', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -349,7 +404,7 @@ export async function authRoutes(fastify) {
       });
     } catch (error) {
       logError('GitHub OAuth callback error', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -363,7 +418,7 @@ export async function authRoutes(fastify) {
       reply.send(providers);
     } catch (error) {
       logError('Error fetching OAuth providers', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -398,7 +453,7 @@ export async function authRoutes(fastify) {
       });
     } catch (error) {
       logError('Error linking OAuth provider', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 
@@ -421,7 +476,7 @@ export async function authRoutes(fastify) {
       });
     } catch (error) {
       logError('Error unlinking OAuth provider', error);
-      reply.code(400).send({ error: error.message });
+      reply.code(500).send({ error: error.message });
     }
   });
 }

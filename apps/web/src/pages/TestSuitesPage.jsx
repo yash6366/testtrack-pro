@@ -4,6 +4,10 @@ import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { FolderKanban } from 'lucide-react';
 import { logError } from '../lib/errorLogger';
+import { useProject } from '../hooks/useProject';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingState from '@/components/common/LoadingState';
+import BackButton from '@/components/ui/BackButton';
 
 export default function TestSuitesPage() {
   const navigate = useNavigate();
@@ -15,11 +19,19 @@ export default function TestSuitesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'hierarchy'
-  
-  const projectId = searchParams.get('projectId') || localStorage.getItem('selectedProjectId');
+
+  const { selectedProjectId, setActiveProjectId, loading: projectLoading } = useProject();
+  const searchProjectId = searchParams.get('projectId');
+  const projectId = searchProjectId || selectedProjectId;
   const type = searchParams.get('type') || '';
   const status = searchParams.get('status') || '';
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (searchProjectId) {
+      setActiveProjectId(searchProjectId);
+    }
+  }, [searchProjectId, setActiveProjectId]);
 
   useEffect(() => {
     loadSuites();
@@ -27,7 +39,6 @@ export default function TestSuitesPage() {
 
   const loadSuites = async () => {
     if (!projectId) {
-      setError('No project selected');
       setLoading(false);
       return;
     }
@@ -199,32 +210,38 @@ export default function TestSuitesPage() {
     );
   };
 
+  if (projectLoading) {
+    return <LoadingState className="min-h-screen" message="Loading projects..." />;
+  }
+
   if (!projectId) {
     return (
-      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-6">
-        <div className="max-w-md w-full text-center">
-          <div className="bg-[var(--surface)] rounded-2xl p-8 border border-[var(--border)] shadow-lg">
-            <div className="w-16 h-16 bg-[var(--primary)]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FolderKanban className="w-8 h-8 text-[var(--primary)]" />
-            </div>
-            <h2 className="text-2xl font-semibold mb-2">No Project Selected</h2>
-            <p className="text-[var(--muted)] mb-6">
-              Please select a project from the dropdown in the navigation bar to view test suites.
-            </p>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="tt-btn tt-btn-primary px-6 py-2.5"
-            >
-              Go to Dashboard
-            </button>
-          </div>
+      <div className="min-h-screen bg-[var(--bg)] p-6">
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+        <div className="max-w-3xl mx-auto">
+          <EmptyState
+            icon={FolderKanban}
+            title="No project selected"
+            description="Select or create a project to view test suites."
+            actionLabel="Select Project"
+            onAction={() => navigate('/projects')}
+          />
         </div>
       </div>
     );
   }
 
+  if (loading) {
+    return <LoadingState className="min-h-screen" message="Loading test suites..." />;
+  }
+
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>

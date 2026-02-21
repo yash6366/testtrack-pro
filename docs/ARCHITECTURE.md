@@ -2,7 +2,10 @@
 
 ## Overview
 
-TestTrack Pro is a modern, full-stack test management platform built with a microservices-inspired architecture using a monorepo structure.
+TestTrack Pro is a comprehensive software testing management platform built with a modern, production-ready monorepo architecture. The system is organized around **projects** as the primary organizational unit, with multiple users collaborating through role-based access control (ADMIN, DEVELOPER, TESTER).
+
+**Version**: 0.6.2  
+**Status**: Production-Ready (70%+ Test Coverage)
 
 ## Tech Stack
 
@@ -26,7 +29,7 @@ TestTrack Pro is a modern, full-stack test management platform built with a micr
 - **Real-time**: Socket.IO
 - **Authentication**: JWT + bcrypt
 - **File Storage**: Cloudinary
-- **Email**: Nodemailer
+- **Email**: Resend
 - **Job Scheduling**: node-cron
 - **Testing**: Jest
 - **Monitoring**: Sentry
@@ -94,8 +97,8 @@ TestTrack Pro is a modern, full-stack test management platform built with a micr
 ┌─────────────────────────────────────────────────────────────┐
 │                Supporting Services                           │
 ├─────────────────────────────────────────────────────────────┤
-│  Redis           Cloudinary      Email Server               │
-│  (Cache/PubSub)  (File Storage)  (SMTP)                     │
+│  Redis           Cloudinary      Resend API                 │
+│  (Cache/PubSub)  (File Storage)  (Email Service)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -104,31 +107,74 @@ TestTrack Pro is a modern, full-stack test management platform built with a micr
 ### Core Entities
 
 **User**
-- id, email, password (hashed), name, role
-- Roles: ADMIN, TESTER, DEVELOPER
+- Unique email, hashed password, role (ADMIN, TESTER, DEVELOPER)
+- Account security: verification tokens, failed login tracking, lockout mechanism
+- Refresh token rotation for session management
+- Audit logging via UserActivityLog and AuditLog
 
 **Project**
-- id, name, description, settings
-- Many Users (via ProjectMember)
+- Owner (User), status (ACTIVE, ARCHIVED)
+- User allocations with project-specific roles
+- Isolated test cases, runs, bugs, and artifacts per project
+- SearchIndex for full-text search across resources
 
 **TestCase**
-- id, title, description, type, priority, status
-- Steps (TestStep[])
-- Belongs to Project
+- Name, description, type (FUNCTIONAL, REGRESSION, SMOKE, etc.)
+- Priority (P0-P4), severity (CRITICAL, MAJOR, MINOR, TRIVIAL)
+- Status (DRAFT, ACTIVE, DEPRECATED, ARCHIVED)
+- Steps with sequential ordering
+- Version history (TestCaseVersion) for change tracking
+- Soft-delete support (isDeleted flag)
 
 **TestRun**
-- id, name, environment, buildVersion
-- Contains multiple TestExecutions
+- Name, environment, build version
+- Status: NOT_STARTED, IN_PROGRESS, COMPLETED, PAUSED
+- Multiple TestExecutions (1:N relationship)
+- Timestamps: planned, actual start/end dates
 
 **TestExecution**
-- id, status, actualResult
 - Links TestCase + TestRun
-- Many ExecutionSteps
+- Status: BLOCKED, PASSED, FAILED, SKIPPED
+- ExecutionStep records per test step
+- Evidence attachments for screenshots/logs
+- Duration tracking in seconds
 
-**Defect (Bug)**
-- id, title, description, status, priority, severity
-- Reporter, Assignee
-- Linked to TestExecution
+**Bug (Defect)**
+- Unique bugNumber (e.g., "PROJ-001")
+- Status workflow: NEW → ASSIGNED → IN_PROGRESS → FIXED → VERIFIED_FIXED → CLOSED
+- Severity (CRITICAL, MAJOR, MINOR, TRIVIAL), Priority (P0-P4)
+- Environment, affected version, reproducibility
+- **New in v0.6.2**: Fix documentation fields:
+  - `fixStrategy`: How the bug was fixed
+  - `rootCauseAnalysis`: Analysis of root cause
+  - `rootCauseCategory`: DESIGN_DEFECT, IMPLEMENTATION_ERROR, etc.
+  - `fixedInCommitHash`, `fixBranchName`: Git traceability
+  - `codeReviewUrl`: Link to PR for fix
+  - `targetFixVersion`, `fixedInVersion`: Version tracking
+  - `actualFixHours`: Time spent on fix
+
+**TestSuite**
+- Logical grouping of test cases
+- Types: REGRESSION, SMOKE, SANITY, CUSTOM
+- Status: ACTIVE, ARCHIVED, DEPRECATED
+- Execution tracking and result aggregation
+
+**TestPlan**
+- Collection of test cases for a release
+- Status tracking: PLANNED, IN_PROGRESS, COMPLETED
+- Milestone associations
+
+**Notification**
+- Real-time and email delivery
+- DeliveryStatus tracking (PENDING, DELIVERED, FAILED, BOUNCED)
+- Expiration (30-day retention)
+- User preferences for notification types
+
+**SearchIndex**
+- Full-text search across test cases, bugs, executions
+- Indexed fields: title, content, tags
+- Automatic indexing on create/update
+- Optimized for substring matching
 
 ## Key Features & Components
 
@@ -161,31 +207,123 @@ TestTrack Pro is a modern, full-stack test management platform built with a micr
 5. Overall execution status calculated
 6. Failures can create Bugs
 
-### 4. Bug Tracking Workflow
+###Service Layer Architecture
 
-**Statuses**:
+### Key Services
+
+**Authentication & Authorization**
+- `authService.js`: User signup, login, token refresh, password reset
+- `rbac.js`: JWT verification, role-based middleware
+- `permissions.js`: Permission matrix (ADMIN, DEVELOPER, TESTER)
+- `testCasePermissions.js`: Resource-level permission checks
+
+**Business Logic Services**
+- `testCaseService.js`: CRUD, versioning, soft-delete, templates
+- `bugService.js`: Bug lifecycle, fix documentation, unique ID generation (serializable)
+- `analyticsService.js`: Trend analysis, flaky test detection, execution speed metrics
+- `searchService.js` & `searchIndexService.js`: Full-text search with index maintenance
+- `notificationService.js`: Creation, delivery, preferences, digest scheduling
+- `notificationEmitter.js`: Real-time WebSocket emission, delivery tracking
+
+**Developer Features**
+- `developerService.js`: Developer analytics, fix documentation, bug assignment tracking
+
+**Infrastructure Services**
+- `emailService.js`: Email templates, verification, password reset
+- `channelService.js`: Chat channels, universal channel management
+- `githubService.js`: GitHub OAuth, commit linking
+- `commitParserService.js`: Auto-linking commits to bugs via regex patterns
+- `auditService.js`: Comprehensive audit logging for compliance
+
+## Database Schema (v0.6.2)
+
+### Core Models
+
+**User**
+- Authentication credentials (email, password hash)
+- Profile (name, avatar, timezone)
+- Roles (ADMIN, DEVELOPER, TESTER)
+- OAuth integrations (Google, GitHub)
+- Preferences (notifications, theme)
+
+**Project**
+- Team workspace for test management
+- Multiple channels for team collaboration
+- Configurable members with role assignment
+- Activity tracking and audit logs
+
+**TestCase**
+- Test specifications with steps and expected results
+- Versioning and change history
+- Status workflow (Draft → Review → Approved → Deprecated)
+- Tags and categorization
+- Evidence attachments (screenshots, logs)
+
+**TestExecution**
+- Recorded test runs with step-level results
+- Pass/Fail/Blocked status per step
+- Execution time tracking (pass rate, avg duration)
+- Flaky test detection (inconsistent results)
+- Links to bug reports from failures
+
+**Bug**
+- Defect tracking with complete lifecycle
+- Severity and priority classification
+- Assignment to developers
+- Status workflow (Open → In Progress → Resolved → Verified)
+- Attachment storage (evidence files)
+
+**BugFixDocumentation** *(NEW in v0.6.2)*
+- Root cause classification (Design Defect, Implementation Error, Configuration Issue, etc.)
+- Detailed fix description
+- Git commit/PR linking
+- Fix hours tracking
+- Developer attribution
+- Verification status
+
+**DeveloperAnalytics** *(NEW in v0.6.2)*
+- Bugs fixed per developer
+- Average fix time calculations
+- Root cause distribution analysis
+- Productivity metrics and trends
+- Performance insights
+
+**ExecutionMetrics**
+- Flaky test detection data
+- Pass/fail trend tracking (8-week history)
+- Performance analytics (execution speed)
+- Test coverage metrics
+- Bug velocity tracking
+
+## Deployment Architecture
+
+### Recommended Production Setup
+
 ```
-NEW → ASSIGNED → IN_PROGRESS → FIXED
-    → AWAITING_VERIFICATION → VERIFIED_FIXED → CLOSED
-    → REOPENED (if verification fails)
-```
-
-### 5. Analytics & Reporting
-
-- Test pass/fail rates
-- Bug trends
-- Coverage metrics
-- Execution history
-- Exportable reports (PDF, Excel)
-
-## Security Architecture
-
-### Authentication
-- JWT tokens (1h expiry)
-- Refresh token rotation
-- Secure password hashing (bcrypt, 12 rounds)
-- Email verification
-- Password reset flow
+Internet
+  │
+  ▼
+┌─────────────┐
+│   Nginx     │ (Reverse Proxy, SSL Termination)
+└──────┬──────┘
+       │
+   ┌───┴───────────┐
+   │               │
+┌──▼──┐         ┌─▼──┐
+│ Web │         │ API│ (Node.js Processes)
+│(SPA)│         │    │ (PM2 Cluster Mode)
+│:5173│         │:3001│ (Multiple instances)
+└──┬──┘         └─┬──┘
+   │               │
+   └───────┬───────┘
+           │
+   ┌───────┴────────┐
+   │                │
+┌──▼──────┐    ┌───▼──────┐
+│PostgreSQL│   │  Redis    │
+│ Primary  │   │  Cache    │
+│ DB       │   │  & PubSub │
+└──────────┘   └assword reset flow
 
 ### Authorization
 - RBAC at route level

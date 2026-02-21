@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { AuthProvider } from '@/context/AuthContext';
+import { ProjectProvider } from '@/context/ProjectContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -645,15 +646,17 @@ export default function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <Router
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <AppRoutes />
-            <NotificationToast />
-          </Router>
+          <ProjectProvider>
+            <Router
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
+              <AppRoutes />
+              <NotificationToast />
+            </Router>
+          </ProjectProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

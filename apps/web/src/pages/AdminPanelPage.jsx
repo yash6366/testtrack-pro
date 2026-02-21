@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronRight,
 } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function AdminPanelPage() {
   const navigate = useNavigate();
@@ -130,6 +131,10 @@ export default function AdminPanelPage() {
       headerSubtitle="Manage system settings and users"
       onLogout={handleLogout}
     >
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
+
       {/* Statistics Grid */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

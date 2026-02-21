@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import BackButton from '@/components/ui/BackButton';
 
 export default function SearchResultsPage() {
   const [searchParams] = useSearchParams();
@@ -151,12 +152,7 @@ export default function SearchResultsPage() {
         headerTitle="Search"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-          >
-            ← Back to Dashboard
-          </button>
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
           <div className="text-center py-12">
             <p className="text-[var(--muted)]">Enter a search query to begin</p>
           </div>
@@ -187,13 +183,7 @@ export default function SearchResultsPage() {
       headerSubtitle={`Found ${totalCount} result${totalCount !== 1 ? 's' : ''}`}
     >
       <div className="p-6 space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-        >
-          ← Back to Dashboard
-        </button>
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
 
         {/* Error Message */}
         {error && (

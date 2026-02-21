@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { logError } from '../lib/errorLogger';
+import BackButton from '@/components/ui/BackButton';
 
 export default function TestPlansPage() {
   const navigate = useNavigate();
@@ -157,6 +158,10 @@ export default function TestPlansPage() {
   return (
     <div className="min-h-screen bg-[var(--bg)] p-6">
       <div className="max-w-7xl mx-auto">
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-[var(--foreground)]">Test Plans</h1>

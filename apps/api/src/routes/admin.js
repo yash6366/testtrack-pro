@@ -3,7 +3,9 @@ import { createAuthGuards } from '../lib/rbac.js';
 import { ROLES, hasPermission, isForbidden } from '../lib/permissions.js';
 import { logAuditAction, getAuditLogs, getUserAuditLogs, exportAuditLogs } from '../services/auditService.js';
 import * as adminProjectService from '../services/adminProjectService.js';
+import * as chatAdminService from '../services/chatAdminService.js';
 import { unlockAccount } from '../services/authService.js';
+import { updateUserRoleChannels } from './channels.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
@@ -283,6 +285,9 @@ export async function adminRoutes(fastify) {
       select: { id: true, email: true, role: true },
     });
 
+    // Keep role-based channel membership in sync.
+    await updateUserRoleChannels(targetUserId, oldRole, normalizedRole);
+
     // Log audit
     await logAuditAction(request.user.id, 'USER_ROLE_CHANGED', {
       resourceType: 'USER',
@@ -543,7 +548,7 @@ export async function adminRoutes(fastify) {
         reply.code(201).send(project);
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -613,7 +618,7 @@ export async function adminRoutes(fastify) {
         reply.send(project);
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -638,7 +643,7 @@ export async function adminRoutes(fastify) {
         reply.code(201).send(environment);
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -658,7 +663,7 @@ export async function adminRoutes(fastify) {
         reply.send({ message: 'Environment deleted' });
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -683,7 +688,7 @@ export async function adminRoutes(fastify) {
         reply.code(201).send(customField);
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -703,7 +708,7 @@ export async function adminRoutes(fastify) {
         reply.send({ message: 'Custom field deleted' });
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -733,7 +738,7 @@ export async function adminRoutes(fastify) {
         reply.code(201).send(allocation);
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -757,7 +762,7 @@ export async function adminRoutes(fastify) {
         reply.send({ message: 'User removed from project' });
       } catch (error) {
         fastify.log.error(error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -775,6 +780,445 @@ export async function adminRoutes(fastify) {
         const allocations = await adminProjectService.getProjectUserAllocations(Number(projectId));
 
         reply.send({ allocations });
+      } catch (error) {
+        fastify.log.error(error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // ==========================================
+  // PHASE 3: CHAT CONTROLS
+  // ==========================================
+
+  /**
+   * Get recent messages for admin message management
+   */
+  fastify.get(
+    '/api/admin/chat/messages',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { skip, take, channelId } = request.query;
+        const limit = Math.min(50, Math.max(1, Number(take) || 50));
+        const offset = Math.max(0, Number(skip) || 0);
+
+        const { messages, total } = await chatAdminService.getRecentMessages(
+          limit,
+          offset,
+          channelId ? Number(channelId) : null
+        );
+
+        reply.send({ messages, pagination: { total, limit, offset } });
+      } catch (error) {
+        fastify.log.error(error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Delete a message (soft delete)
+   */
+  fastify.post(
+    '/api/admin/chat/messages/:messageId/delete',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { messageId } = request.params;
+        const { reason } = request.body;
+
+        const deletedMessage = await chatAdminService.deleteMessage(
+          Number(messageId),
+          request.user.id,
+          request.user.name,
+          reason
+        );
+
+        // Broadcast deletion via WebSocket to channel and admins
+        if (fastify.io) {
+          const channelRoom = `channel-${deletedMessage.channelId}`;
+          fastify.io.to(channelRoom).emit('message_deleted', {
+            messageId: deletedMessage.id,
+            channelId: deletedMessage.channelId,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('message_deleted', {
+            messageId: deletedMessage.id,
+            channelId: deletedMessage.channelId,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'Message deleted', deletedMessage });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'Message not found') {
+          return reply.code(404).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Get all users with mute status
+   */
+  fastify.get(
+    '/api/admin/chat/users',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { skip, take } = request.query;
+        const limit = Math.min(100, Math.max(1, Number(take) || 50));
+        const offset = Math.max(0, Number(skip) || 0);
+
+        const { users, total } = await chatAdminService.getAllUsers(limit, offset);
+
+        reply.send({ users, pagination: { total, limit, offset } });
+      } catch (error) {
+        fastify.log.error(error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Mute a user
+   */
+  fastify.post(
+    '/api/admin/chat/users/:userId/mute',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { userId } = request.params;
+        const { mutedUntil, reason } = request.body;
+
+        if (!mutedUntil) {
+          return reply.code(400).send({ error: 'mutedUntil is required' });
+        }
+
+        const mutedUser = await chatAdminService.muteUser(
+          Number(userId),
+          request.user.id,
+          request.user.name,
+          new Date(mutedUntil),
+          reason
+        );
+
+        // Broadcast mute via WebSocket to user and admins
+        if (fastify.io) {
+          const userRoom = `user:${mutedUser.id}`;
+          fastify.io.to(userRoom).emit('user_muted', {
+            userId: mutedUser.id,
+            mutedUntil: mutedUser.mutedUntil,
+            reason: reason,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('user_muted', {
+            userId: mutedUser.id,
+            userName: mutedUser.name,
+            mutedUntil: mutedUser.mutedUntil,
+            reason: reason,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'User muted', user: mutedUser });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'User not found' || error.message.includes('Cannot mute')) {
+          return reply.code(400).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Unmute a user
+   */
+  fastify.post(
+    '/api/admin/chat/users/:userId/unmute',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { userId } = request.params;
+
+        const unmutedUser = await chatAdminService.unmuteUser(
+          Number(userId),
+          request.user.id,
+          request.user.name
+        );
+
+        // Broadcast unmute via WebSocket to user and admins
+        if (fastify.io) {
+          const userRoom = `user:${unmutedUser.id}`;
+          fastify.io.to(userRoom).emit('user_unmuted', {
+            userId: unmutedUser.id,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('user_unmuted', {
+            userId: unmutedUser.id,
+            userName: unmutedUser.name,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'User unmuted', user: unmutedUser });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'User not found') {
+          return reply.code(404).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Get all channels with lock/disable status
+   */
+  fastify.get(
+    '/api/admin/chat/channels',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { skip, take } = request.query;
+        const limit = Math.min(100, Math.max(1, Number(take) || 50));
+        const offset = Math.max(0, Number(skip) || 0);
+
+        const { channels, total } = await chatAdminService.getAllChannels(limit, offset);
+
+        reply.send({ channels, pagination: { total, limit, offset } });
+      } catch (error) {
+        fastify.log.error(error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Lock a channel
+   */
+  fastify.post(
+    '/api/admin/chat/channels/:channelId/lock',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { channelId } = request.params;
+        const { reason } = request.body;
+
+        const lockedChannel = await chatAdminService.lockChannel(
+          Number(channelId),
+          request.user.id,
+          request.user.name,
+          reason
+        );
+
+        // Broadcast lock via WebSocket to channel and admins
+        if (fastify.io) {
+          const channelRoom = `channel-${lockedChannel.id}`;
+          fastify.io.to(channelRoom).emit('channel_locked', {
+            channelId: lockedChannel.id,
+            isLocked: true,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('channel_locked', {
+            channelId: lockedChannel.id,
+            channelName: lockedChannel.name,
+            isLocked: true,
+            reason: reason,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'Channel locked', channel: lockedChannel });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'Channel not found') {
+          return reply.code(404).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Unlock a channel
+   */
+  fastify.post(
+    '/api/admin/chat/channels/:channelId/unlock',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { channelId } = request.params;
+
+        const unlockedChannel = await chatAdminService.unlockChannel(
+          Number(channelId),
+          request.user.id,
+          request.user.name
+        );
+
+        // Broadcast unlock via WebSocket to channel and admins
+        if (fastify.io) {
+          const channelRoom = `channel-${unlockedChannel.id}`;
+          fastify.io.to(channelRoom).emit('channel_unlocked', {
+            channelId: unlockedChannel.id,
+            isLocked: false,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('channel_unlocked', {
+            channelId: unlockedChannel.id,
+            channelName: unlockedChannel.name,
+            isLocked: false,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'Channel unlocked', channel: unlockedChannel });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'Channel not found') {
+          return reply.code(404).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Disable chat for a channel
+   */
+  fastify.post(
+    '/api/admin/chat/channels/:channelId/disable',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { channelId } = request.params;
+        const { reason } = request.body;
+
+        const disabledChannel = await chatAdminService.disableChat(
+          Number(channelId),
+          request.user.id,
+          request.user.name,
+          reason
+        );
+
+        // Broadcast disable via WebSocket to channel and admins
+        if (fastify.io) {
+          const channelRoom = `channel-${disabledChannel.id}`;
+          fastify.io.to(channelRoom).emit('chat_disabled', {
+            channelId: disabledChannel.id,
+            isDisabled: true,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('chat_disabled', {
+            channelId: disabledChannel.id,
+            channelName: disabledChannel.name,
+            isDisabled: true,
+            reason: reason,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'Chat disabled', channel: disabledChannel });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'Channel not found') {
+          return reply.code(404).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Enable chat for a channel
+   */
+  fastify.post(
+    '/api/admin/chat/channels/:channelId/enable',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { channelId } = request.params;
+
+        const enabledChannel = await chatAdminService.enableChat(
+          Number(channelId),
+          request.user.id,
+          request.user.name
+        );
+
+        // Broadcast enable via WebSocket to channel and admins
+        if (fastify.io) {
+          const channelRoom = `channel-${enabledChannel.id}`;
+          fastify.io.to(channelRoom).emit('chat_enabled', {
+            channelId: enabledChannel.id,
+            isDisabled: false,
+            timestamp: new Date().toISOString(),
+          });
+          // Also notify admins globally
+          fastify.io.to('role:ADMIN').emit('chat_enabled', {
+            channelId: enabledChannel.id,
+            channelName: enabledChannel.name,
+            isDisabled: false,
+            adminId: request.user.id,
+            adminName: request.user.name,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        reply.send({ message: 'Chat enabled', channel: enabledChannel });
+      } catch (error) {
+        fastify.log.error(error);
+        if (error.message === 'Channel not found') {
+          return reply.code(404).send({ error: error.message });
+        }
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * Get chat audit log with filters
+   */
+  fastify.get(
+    '/api/admin/chat/audit-logs',
+    { preHandler: [requireAuth, adminOnly] },
+    async (request, reply) => {
+      try {
+        const { skip, take, actionType, targetType, dateFrom, dateTo, targetQuery } = request.query;
+        const limit = Math.min(100, Math.max(1, Number(take) || 50));
+        const offset = Math.max(0, Number(skip) || 0);
+
+        const filters = {};
+        if (actionType) filters.actionType = actionType;
+        if (targetType) filters.targetType = targetType;
+        if (targetQuery) filters.targetQuery = targetQuery;
+        if (dateFrom) filters.dateFrom = dateFrom;
+        if (dateTo) filters.dateTo = dateTo;
+
+        const { logs, total } = await chatAdminService.getAuditLogs(filters, limit, offset);
+
+        reply.send({ logs, pagination: { total, limit, offset } });
       } catch (error) {
         fastify.log.error(error);
         reply.code(500).send({ error: error.message });

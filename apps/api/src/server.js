@@ -11,9 +11,12 @@ import { setupSocket, initializeRedis } from './lib/socket.js';
 import { initializeNotificationEmitter } from './services/notificationEmitter.js';
 import { initializeCronJobs } from './services/cronService.js';
 import { ensureAllUsersInUniversalChannel } from './services/channelService.js';
+import { ensurePrismaConnected } from './lib/prisma.js';
 import authRoutes from './routes/auth.js';
 import testRoutes from './routes/tests.js';
 import chatRoutes from './routes/chat.js';
+import directMessageRoutes from './routes/directMessage.js';
+import channelRoutes, { initializeRoleChannels, autoJoinRoleChannels } from './routes/channels.js';
 import adminRoutes from './routes/admin.js';
 import testerRoutes from './routes/tester.js';
 import developerRoutes from './routes/developer.js';
@@ -65,6 +68,8 @@ fastify.register(healthRoutes);
 fastify.register(authRoutes);
 fastify.register(testRoutes);
 fastify.register(chatRoutes);
+fastify.register(directMessageRoutes);
+fastify.register(channelRoutes);
 fastify.register(adminRoutes);
 fastify.register(testerRoutes);
 fastify.register(developerRoutes);
@@ -86,6 +91,14 @@ fastify.register(scheduledReportsRoutes);
 // Start server
 const start = async () => {
   try {
+    // Ensure Prisma is connected before using it
+    await ensurePrismaConnected();
+    logInfo('Database connection established');
+    
+    // Initialize role-based channels
+    await initializeRoleChannels();
+    logInfo('Role-based channels initialized');
+    
     await ensureAllUsersInUniversalChannel();
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
     fastify.log.info('Server running on http://localhost:3001');

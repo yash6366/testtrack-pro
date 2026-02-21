@@ -11,6 +11,7 @@ import {
   sendPasswordChangedEmail
 } from './emailService.js';
 import { ensureUserInUniversalChannel } from './channelService.js';
+import { autoJoinRoleChannels } from '../routes/channels.js';
 
 const prisma = getPrismaClient();
 const MAIN_ADMIN_EMAIL = 'admin@gmail.com';
@@ -20,6 +21,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 30;
 const PASSWORD_HISTORY_COUNT = 5;
 const PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1;
+const REFRESH_TOKEN_TTL_DAYS = 30;
 
 function normalizeRole(role) {
   return typeof role === 'string' ? role.trim().toUpperCase() : role;
@@ -27,6 +29,18 @@ function normalizeRole(role) {
 
 function isMainAdminEmail(email) {
   return String(email || '').trim().toLowerCase() === MAIN_ADMIN_EMAIL;
+}
+
+function generateRefreshToken() {
+  return crypto.randomBytes(48).toString('hex');
+}
+
+function hashRefreshToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function getRefreshTokenExpiry() {
+  return new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 }
 
 /**
@@ -88,6 +102,9 @@ export async function signup(fastify, { name, email, password, role = 'DEVELOPER
       email: user.email,
       role: normalizeRole(user.role),
       isVerified: user.isVerified,
+      isMuted: user.isMuted,
+      mutedUntil: user.mutedUntil,
+      muteReason: user.muteReason,
     },
     message: isMainAdmin
       ? 'Signup successful. Admin account verified.'
@@ -104,7 +121,7 @@ export async function signup(fastify, { name, email, password, role = 'DEVELOPER
  * @returns {Promise<Object>} Object containing access token, refresh token, and user data
  * @throws {Error} If credentials are invalid, account is locked, or email not verified
  */
-export async function login(fastify, { email, password }) {
+export async function login(fastify, { email, password }, context = {}) {
   // Validate input
   const validated = LoginSchema.parse({ email, password });
 
@@ -207,7 +224,7 @@ export async function login(fastify, { email, password }) {
     },
   });
 
-  // Generate token
+  // Generate access token
   const token = fastify.jwt.sign(
     {
       id: user.id,
@@ -218,14 +235,35 @@ export async function login(fastify, { email, password }) {
     { expiresIn: '7d' }
   );
 
+  const refreshToken = generateRefreshToken();
+  const refreshTokenHash = hashRefreshToken(refreshToken);
+
+  await prisma.userSession.create({
+    data: {
+      userId: user.id,
+      refreshTokenHash,
+      ipAddress: context.ipAddress || null,
+      userAgent: context.userAgent || null,
+      deviceLabel: context.deviceLabel || null,
+      expiresAt: getRefreshTokenExpiry(),
+    },
+  });
+
+  // Auto-join user to role-based channels
+  await autoJoinRoleChannels(user.id);
+
   return {
     user: {
       id: user.id,
       name: user.name,
       email: user.email,
       role: normalizeRole(user.role),
+      isMuted: user.isMuted,
+      mutedUntil: user.mutedUntil,
+      muteReason: user.muteReason,
     },
     token,
+    refreshToken,
   };
 }
 
@@ -234,7 +272,19 @@ export async function login(fastify, { email, password }) {
  * @param {number} userId - User ID to logout
  * @returns {Promise<Object>} Success message and user data
  */
-export async function logout(userId) {
+export async function logout(userId, refreshToken = null) {
+  if (refreshToken) {
+    const refreshTokenHash = hashRefreshToken(refreshToken);
+    await prisma.userSession.updateMany({
+      where: {
+        userId,
+        refreshTokenHash,
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   // Increment tokenVersion to invalidate all tokens for this user
   // This immediately rejects any requests using old JWT tokens
   const user = await prisma.user.update({
@@ -260,6 +310,11 @@ export async function logout(userId) {
  * @returns {Promise<Object>} Success message and user data
  */
 export async function logoutAll(userId) {
+  await prisma.userSession.updateMany({
+    where: { userId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+
   // Same as logout - increment tokenVersion to invalidate ALL sessions
   // Since we use a single tokenVersion per user, incrementing it revokes all tokens
   const user = await prisma.user.update({
@@ -276,6 +331,92 @@ export async function logoutAll(userId) {
   return {
     message: 'All sessions invalidated',
     user,
+  };
+}
+
+/**
+ * Refresh access token using a refresh token (rotating)
+ * @param {Object} fastify - Fastify instance
+ * @param {string} refreshToken - Refresh token
+ * @param {Object} context - Request context
+ * @returns {Promise<Object>} New access/refresh tokens and user data
+ */
+export async function refreshSession(fastify, refreshToken, context = {}) {
+  if (!refreshToken) {
+    throw new Error('Refresh token is required');
+  }
+
+  const refreshTokenHash = hashRefreshToken(refreshToken);
+  const session = await prisma.userSession.findUnique({
+    where: { refreshTokenHash },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isVerified: true,
+          isActive: true,
+          tokenVersion: true,
+          isMuted: true,
+          mutedUntil: true,
+          muteReason: true,
+        },
+      },
+    },
+  });
+
+  if (!session || session.revokedAt) {
+    throw new Error('Invalid refresh token');
+  }
+
+  if (session.expiresAt && new Date() > session.expiresAt) {
+    throw new Error('Refresh token has expired');
+  }
+
+  if (!session.user?.isVerified || !session.user?.isActive) {
+    throw new Error('User is not active');
+  }
+
+  const newRefreshToken = generateRefreshToken();
+  const newRefreshTokenHash = hashRefreshToken(newRefreshToken);
+
+  await prisma.userSession.update({
+    where: { id: session.id },
+    data: {
+      refreshTokenHash: newRefreshTokenHash,
+      rotatedAt: new Date(),
+      lastUsedAt: new Date(),
+      ipAddress: context.ipAddress || session.ipAddress,
+      userAgent: context.userAgent || session.userAgent,
+      deviceLabel: context.deviceLabel || session.deviceLabel,
+      expiresAt: getRefreshTokenExpiry(),
+    },
+  });
+
+  const accessToken = fastify.jwt.sign(
+    {
+      id: session.user.id,
+      email: session.user.email,
+      role: normalizeRole(session.user.role),
+      tokenVersion: session.user.tokenVersion,
+    },
+    { expiresIn: '7d' }
+  );
+
+  return {
+    user: {
+      id: session.user.id,
+      name: session.user.name,
+      email: session.user.email,
+      role: normalizeRole(session.user.role),
+      isMuted: session.user.isMuted,
+      mutedUntil: session.user.mutedUntil,
+      muteReason: session.user.muteReason,
+    },
+    token: accessToken,
+    refreshToken: newRefreshToken,
   };
 }
 

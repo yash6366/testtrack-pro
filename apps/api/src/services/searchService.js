@@ -38,8 +38,8 @@ export async function globalSearch(projectId, query, resourceTypes = ['TEST_CASE
         resourceType,
         OR: [
           { title: { contains: searchQuery, mode: 'insensitive' } },
-          { content: { contains: searchQuery, mode: 'insensitive' } },
-          { tags: { hasSome: [searchQuery, rawQuery] } },
+          { description: { contains: searchQuery, mode: 'insensitive' } },
+          { searchText: { contains: searchQuery, mode: 'insensitive' } },
         ],
       },
       select: { resourceId: true },
@@ -227,7 +227,7 @@ export async function getSearchSuggestions(projectId, query, resourceTypes = ['T
  * @param {Object} data - Index data
  */
 export async function updateSearchIndex(resourceType, resourceId, data) {
-  const { projectId, title, content, tags = [] } = data;
+  const { projectId, title, description, searchText } = data;
 
   if (!projectId || !title) {
     throw new Error('projectId and title are required');
@@ -245,13 +245,13 @@ export async function updateSearchIndex(resourceType, resourceId, data) {
       resourceId: Number(resourceId),
       projectId: Number(projectId),
       title,
-      content: content || '',
-      tags,
+      description: description || '',
+      searchText: searchText || description || title,
     },
     update: {
       title,
-      content: content || '',
-      tags,
+      description: description || '',
+      searchText: searchText || description || title,
       updatedAt: new Date(),
     },
   });
@@ -301,8 +301,8 @@ export async function rebuildSearchIndex(projectId) {
     await updateSearchIndex('TEST_CASE', tc.id, {
       projectId,
       title: tc.name,
-      content: tc.description || '',
-      tags: tc.tags,
+      description: tc.description || '',
+      searchText: [tc.name, tc.description, ...(tc.tags || [])].filter(Boolean).join(' '),
     });
   }
 
@@ -321,8 +321,8 @@ export async function rebuildSearchIndex(projectId) {
     await updateSearchIndex('BUG', bug.id, {
       projectId,
       title: `${bug.bugNumber} - ${bug.title}`,
-      content: bug.description,
-      tags: [bug.bugNumber],
+      description: bug.description,
+      searchText: [bug.bugNumber, bug.title, bug.description].filter(Boolean).join(' '),
     });
   }
 

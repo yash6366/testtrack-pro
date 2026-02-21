@@ -64,7 +64,7 @@ export async function testSuiteRoutes(fastify) {
         reply.code(201).send(suite);
       } catch (error) {
         console.error('Error creating test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -139,7 +139,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(updated);
       } catch (error) {
         console.error('Error updating test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -157,7 +157,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(result);
       } catch (error) {
         console.error('Error deleting test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -190,7 +190,7 @@ export async function testSuiteRoutes(fastify) {
         reply.code(201).send(cloned);
       } catch (error) {
         console.error('Error cloning test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -208,7 +208,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(archived);
       } catch (error) {
         console.error('Error archiving test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -226,7 +226,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(restored);
       } catch (error) {
         console.error('Error restoring test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -250,7 +250,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(moved);
       } catch (error) {
         console.error('Error moving test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -318,7 +318,7 @@ export async function testSuiteRoutes(fastify) {
         reply.code(201).send(added);
       } catch (error) {
         console.error('Error adding test cases to suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -335,7 +335,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(result);
       } catch (error) {
         console.error('Error removing test case from suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -357,7 +357,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(result);
       } catch (error) {
         console.error('Error removing test cases from suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -379,7 +379,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(result);
       } catch (error) {
         console.error('Error reordering test cases:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -422,7 +422,7 @@ export async function testSuiteRoutes(fastify) {
         reply.code(201).send(suiteRun);
       } catch (error) {
         console.error('Error executing test suite:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -517,7 +517,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(updated);
       } catch (error) {
         console.error('Error updating suite run metrics:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -535,7 +535,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(cancelled);
       } catch (error) {
         console.error('Error cancelling suite run:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -577,7 +577,7 @@ export async function testSuiteRoutes(fastify) {
         reply.send(comparison);
       } catch (error) {
         console.error('Error comparing suite executions:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

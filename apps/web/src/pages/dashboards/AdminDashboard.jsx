@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/DashboardLayout';
 import MetricsGrid from '@/components/MetricsGrid';
 import ProjectManagement from '@/components/ProjectManagement';
+import ChatAdminControls from '@/components/ChatAdminControls';
 import { apiClient } from '@/lib/apiClient';
 
 export default function AdminDashboard() {
@@ -11,6 +12,7 @@ export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
+  const normalizedRole = String(user?.role || '').toUpperCase();
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState('');
@@ -38,6 +40,49 @@ export default function AdminDashboard() {
   const setActiveTab = (tab) => {
     setSearchParams({ tab });
   };
+
+  const access = useMemo(() => {
+    const isAdmin = normalizedRole === 'ADMIN';
+
+    return {
+      overview: true,
+      projects: isAdmin,
+      users: isAdmin,
+      roles: isAdmin,
+      system: isAdmin,
+      chat: isAdmin,
+      audit: isAdmin,
+      backups: isAdmin,
+      reports: isAdmin,
+    };
+  }, [normalizedRole]);
+
+  const tabConfig = useMemo(
+    () => [
+      { key: 'overview', label: 'Overview', enabled: access.overview },
+      { key: 'projects', label: 'Project Management', enabled: access.projects },
+      { key: 'users', label: 'User Management', enabled: access.users },
+      { key: 'roles', label: 'Role & Permissions', enabled: access.roles },
+      { key: 'system', label: 'System Configuration', enabled: access.system },
+      { key: 'chat', label: 'Chat Controls', enabled: access.chat },
+      { key: 'audit', label: 'Audit & Security', enabled: access.audit },
+      { key: 'backups', label: 'Backup & Data', enabled: access.backups },
+      { key: 'reports', label: 'Reporting & Analytics', enabled: access.reports },
+    ],
+    [access]
+  );
+
+  const enabledTabs = useMemo(
+    () => tabConfig.filter((tab) => tab.enabled),
+    [tabConfig]
+  );
+  const fallbackTab = enabledTabs[0]?.key || 'overview';
+
+  useEffect(() => {
+    if (!enabledTabs.some((tab) => tab.key === activeTab)) {
+      setSearchParams({ tab: fallbackTab });
+    }
+  }, [activeTab, enabledTabs, fallbackTab, setSearchParams]);
 
   // Load overview metrics
   useEffect(() => {
@@ -238,46 +283,19 @@ export default function AdminDashboard() {
     >
       {/* Tab Navigation */}
       <div className="mb-6 border-b border-[var(--border)] flex gap-1">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-6 py-3 font-medium border-b-2 transition ${
-            activeTab === 'overview'
-              ? 'border-[var(--primary)] text-[var(--primary)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'
-          }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('projects')}
-          className={`px-6 py-3 font-medium border-b-2 transition ${
-            activeTab === 'projects'
-              ? 'border-[var(--primary)] text-[var(--primary)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'
-          }`}
-        >
-          Project Management
-        </button>
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`px-6 py-3 font-medium border-b-2 transition ${
-            activeTab === 'users'
-              ? 'border-[var(--primary)] text-[var(--primary)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'
-          }`}
-        >
-          User Management
-        </button>
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`px-6 py-3 font-medium border-b-2 transition ${
-            activeTab === 'audit'
-              ? 'border-[var(--primary)] text-[var(--primary)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'
-          }`}
-        >
-          Audit & Security
-        </button>
+        {enabledTabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-6 py-3 font-medium border-b-2 transition ${
+              activeTab === tab.key
+                ? 'border-[var(--primary)] text-[var(--primary)]'
+                : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Overview Tab */}
@@ -377,6 +395,71 @@ export default function AdminDashboard() {
       {/* Projects Tab */}
       {activeTab === 'projects' && (
         <ProjectManagement />
+      )}
+
+      {/* Role & Permissions Tab */}
+      {activeTab === 'roles' && (
+        <div className="tt-card mb-8">
+          <div className="px-6 py-4 border-b border-[var(--border)]">
+            <h3 className="text-lg font-semibold">Role & Permission Management</h3>
+            <p className="text-sm text-[var(--muted)]">Customize access rules for platform features</p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="tt-card-soft p-4">
+              <p className="font-semibold">User Roles</p>
+              <p className="text-[var(--muted)] mt-1">Create, edit, and deactivate roles</p>
+            </div>
+            <div className="tt-card-soft p-4">
+              <p className="font-semibold">Permission Sets</p>
+              <p className="text-[var(--muted)] mt-1">Define access rules for modules</p>
+            </div>
+            <div className="tt-card-soft p-4">
+              <p className="font-semibold">Assignments</p>
+              <p className="text-[var(--muted)] mt-1">Apply roles to users and teams</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* System Configuration Tab */}
+      {activeTab === 'system' && (
+        <div className="tt-card mb-8">
+          <div className="px-6 py-4 border-b border-[var(--border)]">
+            <h3 className="text-lg font-semibold">System Configuration</h3>
+            <p className="text-sm text-[var(--muted)]">Global settings, integrations, and defaults</p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              className="tt-btn tt-btn-outline px-4 py-2 text-sm"
+              onClick={() => navigate('/settings')}
+            >
+              Global Settings
+            </button>
+            <button
+              className="tt-btn tt-btn-outline px-4 py-2 text-sm"
+              onClick={() => navigate('/api-keys')}
+            >
+              API Access & Keys
+            </button>
+            <button
+              className="tt-btn tt-btn-outline px-4 py-2 text-sm"
+              onClick={() => navigate('/settings')}
+            >
+              Notification Defaults
+            </button>
+            <button
+              className="tt-btn tt-btn-outline px-4 py-2 text-sm"
+              onClick={() => navigate('/settings')}
+            >
+              Integrations & Webhooks
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Controls Tab */}
+      {activeTab === 'chat' && (
+        <ChatAdminControls />
       )}
 
       {/* Users Tab */}
@@ -600,6 +683,58 @@ export default function AdminDashboard() {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Backup & Data Tab */}
+      {activeTab === 'backups' && (
+        <div className="tt-card mb-8">
+          <div className="px-6 py-4 border-b border-[var(--border)]">
+            <h3 className="text-lg font-semibold">Backup & Data Control</h3>
+            <p className="text-sm text-[var(--muted)]">Manage backups, restores, and data retention</p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="tt-card-soft p-4">
+              <p className="font-semibold">Manual Backups</p>
+              <p className="text-[var(--muted)] mt-1">Trigger and track backup jobs</p>
+            </div>
+            <div className="tt-card-soft p-4">
+              <p className="font-semibold">Restore Controls</p>
+              <p className="text-[var(--muted)] mt-1">Manage restore points and recovery</p>
+            </div>
+            <div className="tt-card-soft p-4">
+              <p className="font-semibold">Data Retention</p>
+              <p className="text-[var(--muted)] mt-1">Purge or recover soft-deleted records</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reporting & Analytics Tab */}
+      {activeTab === 'reports' && (
+        <div className="tt-card mb-8">
+          <div className="px-6 py-4 border-b border-[var(--border)]">
+            <h3 className="text-lg font-semibold">Reporting & Analytics</h3>
+            <p className="text-sm text-[var(--muted)]">System-wide dashboards and exports</p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              className="tt-btn tt-btn-outline px-4 py-2 text-sm"
+              onClick={() => navigate('/reports')}
+            >
+              View Reports
+            </button>
+            <button
+              className="tt-btn tt-btn-outline px-4 py-2 text-sm"
+              onClick={() => navigate('/analytics')}
+            >
+              Open Analytics Dashboard
+            </button>
+            <div className="tt-card-soft p-4 text-sm">
+              <p className="font-semibold">Export Center</p>
+              <p className="text-[var(--muted)] mt-1">Export reports to PDF, Excel, or CSV</p>
+            </div>
           </div>
         </div>
       )}

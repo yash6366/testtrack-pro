@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import BackButton from '@/components/ui/BackButton';
 
 /**
  * Component for creating a new bug (from failed test execution)
@@ -90,18 +91,14 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
     }
   };
 
-  const handleCancel = () => {
-    if (onCancel) {
-      onCancel();
-    } else {
-      navigate(-1);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[var(--bg)] p-6">
       <div className="max-w-2xl mx-auto">
         <div>
+          <div className="mb-4">
+            <BackButton label="Back to Bugs" fallback="/bugs" />
+          </div>
           <h1 className="text-3xl font-bold text-[var(--foreground)] mb-2">
             Report Bug
           </h1>
@@ -309,14 +306,11 @@ export default function BugCreationForm({ executionId = null, testCaseId = null,
               >
                 {submitting ? 'Creating Bug...' : 'Create Bug'}
               </button>
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={submitting}
-                className="flex-1 tt-btn tt-btn-secondary disabled:opacity-50"
-              >
-                Cancel
-              </button>
+              <BackButton
+                label="Cancel"
+                fallback="/bugs"
+                className="flex-1 tt-btn tt-btn-outline disabled:opacity-50"
+              />
             </div>
           </form>
         )}

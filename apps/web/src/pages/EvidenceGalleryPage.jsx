@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import BackButton from '@/components/ui/BackButton';
 
 export default function EvidenceGalleryPage() {
   const navigate = useNavigate();
@@ -151,6 +152,8 @@ export default function EvidenceGalleryPage() {
       headerSubtitle="View and manage all test execution evidence"
     >
       <div className="p-6 space-y-6">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+
         {/* Messages */}
         {error && (
           <div className="bg-red-50 dark:bg-red-900 border border-red-200 text-red-800 dark:text-red-200 px-4 py-3 rounded">

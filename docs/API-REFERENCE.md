@@ -559,7 +559,178 @@ Request:
 
 Response: `200 OK`
 
+### Document Bug Fix (NEW in v0.6.2)
+
+**PATCH** `/api/projects/:projectId/bugs/:bugId/fix-documentation`
+
+Request:
+```json
+{
+  "fixStrategy": "Refactored login validation logic to handle special characters properly. Updated regex pattern to be more permissive.",
+  "rootCauseAnalysis": "The password validation regex was too restrictive and incorrectly rejected valid special characters supported by backend.",
+  "rootCauseCategory": "IMPLEMENTATION_ERROR",
+  "fixedInCommitHash": "a3f7c89d4e2b1f6a9c8e3d2f1a0b9c8d7e6f5a4",
+  "fixBranchName": "fix/login-validation-chars",
+  "codeReviewUrl": "https://github.com/org/repo/pull/1234",
+  "targetFixVersion": "0.6.3",
+  "fixedInVersion": "0.6.3",
+  "actualFixHours": 4.5
+}
+```
+
+Response: `200 OK`
+
+**Response:**
+```json
+{
+  "id": 1,
+  "title": "Login button not clickable",
+  "status": "FIXED",
+  "fixStrategy": "Refactored login validation logic...",
+  "rootCauseAnalysis": "The password validation regex...",
+  "rootCauseCategory": "IMPLEMENTATION_ERROR",
+  "fixedInCommitHash": "a3f7c89d4e2b1f6a9c8e3d2f1a0b9c8d7e6f5a4",
+  "fixBranchName": "fix/login-validation-chars",
+  "codeReviewUrl": "https://github.com/org/repo/pull/1234",
+  "targetFixVersion": "0.6.3",
+  "fixedInVersion": "0.6.3",
+  "actualFixHours": 4.5,
+  "updatedAt": "2024-02-12T15:30:00Z"
+}
+```
+
+**Root Cause Categories:**
+- `DESIGN_DEFECT`: Flaw in system design
+- `IMPLEMENTATION_ERROR`: Coding error
+- `ENVIRONMENTAL_ISSUE`: Environment-related
+- `THIRD_PARTY_LIBRARY`: Third-party library issue
+- `DOCUMENTATION_ERROR`: Documentation mistake led to bug
+- `CONFIGURATION_ISSUE`: Configuration problem
+- `OTHER`: Other cause
+
 ## Analytics & Reports
+
+### Get Execution Trends
+
+**GET** `/api/projects/:projectId/analytics/execution-trends`
+
+Query Parameters:
+- `weeks` (number): Number of weeks (default: 8)
+
+Response:
+```json
+{
+  "projectId": 1,
+  "timeframe": "8 weeks",
+  "data": [
+    {
+      "week": "2024-01-01",
+      "total": 45,
+      "passed": 40,
+      "failed": 3,
+      "blocked": 2,
+      "passRate": 88.9
+    }
+  ],
+  "summary": {
+    "avgPassRate": 85.5,
+    "trend": "improving"
+  }
+}
+```
+
+### Get Flaky Tests
+
+**GET** `/api/projects/:projectId/analytics/flaky-tests`
+
+Query Parameters:
+- `runsThreshold` (number): Minimum runs to consider (default: 5)
+
+Response:
+```json
+{
+  "projectId": 1,
+  "data": [
+    {
+      "testCaseId": 15,
+      "testCaseName": "User Login with Special Characters",
+      "flakeRate": 45.0,
+      "recentRuns": 10,
+      "passedRuns": 6,
+      "failedRuns": 4
+    },
+    {
+      "testCaseId": 22,
+      "testCaseName": "Database Connection Retry",
+      "flakeRate": 30.0,
+      "recentRuns": 10,
+      "passedRuns": 7,
+      "failedRuns": 3
+    }
+  ]
+}
+```
+
+### Get Execution Speed Analysis
+
+**GET** `/api/projects/:projectId/analytics/execution-speed`
+
+Query Parameters:
+- `days` (number): Days to analyze (default: 30)
+
+Response:
+```json
+{
+  "projectId": 1,
+  "days": 30,
+  "total": {
+    "count": 500,
+    "p50": 120,
+    "p95": 480,
+    "p99": 720,
+    "avg": 185,
+    "min": 30,
+    "max": 900
+  },
+  "byStatus": {
+    "passed": {
+      "count": 450,
+      "avg": 170,
+      "p95": 450
+    },
+    "failed": {
+      "count": 50,
+      "avg": 280,
+      "p95": 600
+    }
+  }
+}
+```
+
+### Get Bug Trend Analysis
+
+**GET** `/api/projects/:projectId/analytics/bug-trends`
+
+Query Parameters:
+- `weeks` (number): Number of weeks (default: 8)
+
+Response:
+```json
+{
+  "projectId": 1,
+  "weeks": 8,
+  "data": [
+    {
+      "week": "2024-01-01",
+      "created": 12,
+      "resolved": 8,
+      "reopened": 1,
+      "velocity": 4
+    }
+  ],
+  "currentVelocity": 3
+}
+```
 
 ### Get Test Analytics
 
@@ -606,6 +777,34 @@ Response:
     "CRITICAL": 15
   },
   "avgTimeToClose": 86400
+}
+```
+
+### Get Developer Analytics (NEW in v0.6.2)
+
+**GET** `/api/projects/:projectId/analytics/developers`
+
+Query Parameters:
+- `weeks` (number): Number of weeks to analyze (default: 8)
+
+Response:
+```json
+{
+  "projectId": 1,
+  "weeks": 8,
+  "developers": [
+    {
+      "developerId": 3,
+      "developerName": "Alice Smith",
+      "bugCount": 18,
+      "avgFixTimeHours": 4.5,
+      "rootCauseDistribution": {
+        "DESIGN_DEFECT": 2,
+        "IMPLEMENTATION_ERROR": 10
+      },
+      "trend": "improving"
+    }
+  ]
 }
 ```
 

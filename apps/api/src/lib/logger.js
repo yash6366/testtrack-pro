@@ -124,8 +124,10 @@ export function logRequest(request, additionalData = {}) {
     method: request.method,
     url: request.url,
     ip: request.ip,
+    requestId: request.id,
     userId: request.user?.id,
     userRole: request.user?.role,
+    projectId: request.projectId,
     ...additionalData,
   });
 }
@@ -147,7 +149,9 @@ export function logResponse(request, statusCode, duration = 0, additionalData = 
     statusCode,
     durationMs: duration,
     ip: request.ip,
+    requestId: request.id,
     userId: request.user?.id,
+    projectId: request.projectId,
     ...additionalData,
   });
 }
@@ -260,6 +264,11 @@ export function createRequestLoggerMiddleware() {
     reply.addHook('onSend', (request, reply, payload, done) => {
       const duration = Date.now() - startTime;
       logResponse(request, reply.statusCode, duration);
+      logMetric('api.request.duration', duration, 'ms', {
+        method: request.method,
+        route: request.routerPath || request.url,
+        statusCode: reply.statusCode,
+      });
       done(null, payload);
     });
   };

@@ -4,6 +4,8 @@ import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
 import { logError } from '../lib/errorLogger';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function TestRunDetailPage() {
   const { testRunId } = useParams();
@@ -75,12 +77,7 @@ export default function TestRunDetailPage() {
         headerTitle="Test Run Details"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Reports" fallback="/reports" />
           <div className="bg-red-50 dark:bg-red-900 border border-red-200 text-red-800 dark:text-red-200 px-4 py-3 rounded">
             {error}
           </div>
@@ -97,12 +94,7 @@ export default function TestRunDetailPage() {
         headerTitle="Test Run Details"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Reports" fallback="/reports" />
           <div className="bg-gray-100 text-gray-800 px-4 py-3 rounded">
             Test run not found
           </div>
@@ -124,13 +116,16 @@ export default function TestRunDetailPage() {
       headerSubtitle={testRun.description || 'Test run details'}
     >
       <div className="p-6 space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-        >
-          ← Back
-        </button>
+        <div className="flex flex-col gap-3">
+          <BackButton label="Back to Reports" fallback="/reports" />
+          <Breadcrumb
+            crumbs={[
+              { label: 'Dashboard', path: '/dashboard' },
+              { label: 'Reports', path: '/reports' },
+              { label: testRun?.name || `Test Run #${testRun?.id}`, path: null },
+            ]}
+          />
+        </div>
 
         {/* Error Message */}
         {error && (

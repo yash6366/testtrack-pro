@@ -9,7 +9,9 @@ Common questions and answers about TestTrack Pro.
 - [Test Cases](#test-cases)
 - [Test Execution](#test-execution)
 - [Bug Tracking](#bug-tracking)
+- [Bug Fix Documentation](#bug-fix-documentation-new-in-v062)
 - [Analytics & Reports](#analytics--reports)
+- [Flaky Tests](#flaky-tests-new-in-v062)
 - [Users & Permissions](#users--permissions)
 - [Integration](#integration)
 - [Troubleshooting](#troubleshooting)
@@ -256,6 +258,79 @@ Yes:
 
 ---
 
+## Bug Fix Documentation — NEW in v0.6.2
+
+### What is bug fix documentation?
+
+Bug fix documentation is a new feature that allows developers to document how they fixed bugs, including:
+- **Fix Strategy**: How you fixed the issue
+- **Root Cause Analysis**: Why the bug occurred
+- **Root Cause Category**: Type of issue (Implementation Error, Design Defect, etc.)
+- **Git Traceability**: Link to commit, branch, and code review
+- **Version Tracking**: Target version and estimated fix hours
+
+This creates valuable institutional knowledge and helps track root causes.
+
+### Who can document bug fixes?
+
+Only **Developers** can document fixes for bugs assigned to them:
+- Developers can view bugs assigned to them
+- Developers can document the fix
+- **Developers CANNOT verify fixes** (only Testers and Admins)
+- This separation prevents developers from closing their own work without independent verification
+
+### How do I document a bug fix?
+
+1. Open a bug assigned to you
+2. Make code changes and commit
+3. Click **Document Fix** button
+4. Fill in the form:
+   - **Fix Strategy**: Describe how you fixed it
+   - **Root Cause Analysis**: Explain why it happened
+   - **Root Cause Category**: Select from categories (Implementation Error, Design Defect, Configuration Issue, Dependency Bug, Environment Issue, Etc.)
+   - **Git Information**: Paste commit hash, branch name, PR link
+   - **Version Info**: Target version and hours spent
+5. Click **Save Fix Documentation**
+6. Update bug status to **Fixed**
+7. A tester or admin will verify the fix
+
+### What are the root cause categories?
+
+When documenting a fix, choose the most appropriate category:
+
+- **DESIGN_DEFECT**: Issue in architecture or system design
+- **IMPLEMENTATION_ERROR**: Code logic or implementation mistake
+- **CONFIGURATION_ISSUE**: Wrong settings, deployment config, or environment variables
+- **DEPENDENCY_BUG**: Issue in third-party library or external code
+- **ENVIRONMENT_ISSUE**: Problem with testing/staging/production environment
+- **ENVIRONMENTAL_CHANGE**: External system, API, or integration changed
+- **DOCUMENTATION_ERROR**: Misunderstood requirement or unclear specification
+
+### Can I edit fix documentation after saving?
+
+Currently, fix documentation is write-once. To update it:
+1. You can contact an admin to modify it
+2. Or wait for fix to be verified/rejected
+3. If rejected, you can update and document again
+
+### What happens after I document a fix?
+
+The workflow:
+1. You document the fix and set status to **Fixed**
+2. A **Tester or Admin** reviews your fix
+3. If tests pass: Status → **VERIFIED** → **CLOSED** ✅
+4. If tests fail: Status → **REOPENED** → You fix again
+5. Bug fix documentation is preserved for history
+
+### Can I see other developers' fix documentation?
+
+Yes! You can view:
+- Your own fix documentation
+- Team members' fix documentation (if you have access to the project)
+- Fix documentation helps the team learn from common issues
+
+---
+
 ## Analytics & Reports
 
 ### What metrics does the dashboard show?
@@ -272,6 +347,7 @@ Yes:
 - Execution trends (pass/fail over time)
 - Bug distribution (by severity)
 - Test coverage (by module)
+- **NEW in v0.6.2**: Bug trends and developer analytics
 
 ### Can I create custom reports?
 
@@ -306,6 +382,96 @@ Yes:
 2. Export to PDF
 3. Share via email or link
 4. Or add external email to scheduled reports
+
+---
+
+## Flaky Tests — NEW in v0.6.2
+
+### What are flaky tests?
+
+Flaky tests are tests that sometimes pass and sometimes fail, even when the application code hasn't changed. This is problematic because:
+- ❌ They're unreliable for catching real bugs
+- ❌ They waste developer time investigating false positives
+- ❌ They reduce confidence in test results
+
+### How does flaky test detection work?
+
+TestTrack Pro analyzes execution history to find tests with:
+- **Both passes AND failures** with the same code
+- **High variance** in execution patterns
+- **Inconsistent results** over multiple runs
+
+### How do I view flaky tests?
+
+1. Go to **Analytics** → **Flaky Tests**
+2. Set a threshold (e.g., 30% flake rate)
+3. View tests that exceed that threshold
+4. Click test to see execution history
+5. Identify the pattern causing failures
+
+**What the data shows:**
+- **Flake Rate**: Percentage of failures (Example: 35% means fails 35 times out of 100 runs)
+- **Total Runs**: How many times the test was executed
+- **Pass Count**: Number of passes
+- **Fail Count**: Number of failures
+
+### What causes test flakiness?
+
+Common causes:
+- **Timing issues**: Test completes before element loads (use proper waits)
+- **External dependencies**: API or database queries incomplete
+- **Resource contention**: Race conditions or shared state
+- **Environment variability**: Differences in test environment
+- **Incomplete cleanup**: Previous test data affecting current test
+- **Date/time dependencies**: Tests using current date
+
+### How do I fix a flaky test?
+
+**General approach:**
+1. Review the test's execution history
+2. Look at failed runs vs. passing runs
+3. Identify what's different
+4. Common fixes:
+   - Add explicit waits for elements
+   - Clear test data between runs
+   - Mock external dependencies
+   - Remove timing dependencies
+   - Increase timeouts for slow operations
+
+**Example: Fix a timing issue**
+
+```javascript
+// ❌ FLAKY: Element might not be loaded
+button.click(); // Could fail if button not ready
+
+// ✅ FIXED: Wait for element to be ready
+await waitForElement(button, { timeout: 5000 });
+button.click();
+```
+
+### How do I know if my fix worked?
+
+After fixing a flaky test:
+1. Run the test multiple times (10+)
+2. Check **Analytics** → **Flaky Tests**
+3. Look for the test in the list
+4. If **flake rate drops below your threshold**: ✅ Fixed!
+5. If still listed: More investigation needed
+
+### Should I disable flaky tests?
+
+**No**, it's better to fix them because they test real functionality. Disabling them means:
+- You lose test coverage
+- Bugs in that area might go undetected
+- Focus on understanding and fixing the root cause
+
+### Can I set different flake thresholds?
+
+Yes:
+1. **Analytics** → **Flaky Tests**
+2. Adjust the threshold slider at the top
+3. Lower threshold = stricter detection
+4. Default is 30% (tests failing 30% of the time or more)
 
 ---
 
@@ -387,14 +553,15 @@ Yes! Full REST API:
 ### How do I set up email notifications?
 
 **Admin setup:**
-1. Configure SMTP settings in `.env`:
+1. Sign up for a Resend account at https://resend.com
+2. Get your API key from https://resend.com/api-keys
+3. Configure Resend settings in `.env`:
    ```
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-password
+   RESEND_API_KEY=your_api_key_here
+   RESEND_FROM_EMAIL=noreply@yourdomain.com
    ```
-2. Restart server
+   For testing, you can use: `onboarding@resend.dev`
+4. Restart server
 
 **User preferences:**
 1. **Settings** → **Notifications**

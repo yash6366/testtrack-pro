@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../hooks/useProject';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingState from '@/components/common/LoadingState';
+import { FolderKanban } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function ApiKeysPage() {
   const navigate = useNavigate();
@@ -22,7 +27,15 @@ export default function ApiKeysPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
 
-  const projectId = searchParams.get('projectId') || localStorage.getItem('selectedProjectId');
+  const { selectedProjectId, setActiveProjectId, loading: projectLoading } = useProject();
+  const searchProjectId = searchParams.get('projectId');
+  const projectId = searchProjectId || selectedProjectId;
+
+  useEffect(() => {
+    if (searchProjectId) {
+      setActiveProjectId(searchProjectId);
+    }
+  }, [searchProjectId, setActiveProjectId]);
 
   useEffect(() => {
     loadApiKeys();
@@ -30,7 +43,6 @@ export default function ApiKeysPage() {
 
   const loadApiKeys = async () => {
     if (!projectId) {
-      setError('No project selected');
       setLoading(false);
       return;
     }
@@ -140,19 +152,42 @@ export default function ApiKeysPage() {
     }
   };
 
-  if (loading) {
+  if (projectLoading) {
+    return <LoadingState className="min-h-screen" message="Loading projects..." />;
+  }
+
+  if (!projectId) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin w-12 h-12 border-4 border-[var(--border)] border-t-blue-500 rounded-full" />
+      <div className="min-h-screen bg-[var(--bg)] p-6">
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+        <div className="max-w-3xl mx-auto">
+          <EmptyState
+            icon={FolderKanban}
+            title="No project selected"
+            description="Select or create a project to manage API keys."
+            actionLabel="Select Project"
+            onAction={() => navigate('/projects')}
+          />
+        </div>
       </div>
     );
+  }
+
+  if (loading) {
+    return <LoadingState className="min-h-screen" message="Loading API keys..." />;
   }
 
   const totalPages = Math.ceil(total / 10);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] p-6">
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-[var(--foreground)]">API Keys</h1>

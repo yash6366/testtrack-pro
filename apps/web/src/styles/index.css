@@ -167,6 +167,57 @@
     color: var(--muted-strong);
     border: 1px solid var(--border);
   }
+
+  .back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted-strong);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .back-button:hover {
+    color: var(--text);
+    background: var(--bg-elevated);
+  }
+
+  .back-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--ring);
+  }
+
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .breadcrumb a {
+    color: var(--muted-strong);
+    transition: color 0.2s ease;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--primary);
+  }
+
+  .breadcrumb .separator {
+    color: var(--muted);
+    margin: 0 0.25rem;
+  }
+
+  .breadcrumb .current {
+    color: var(--text);
+    font-weight: 600;
+  }
 }
 
 @layer utilities {

@@ -1,5 +1,5 @@
 import { getPrismaClient } from '../lib/prisma.js';
-import { createAuthGuards } from '../lib/rbac.js';
+import { createAuthGuards, requireProjectAccess } from '../lib/rbac.js';
 import { isForbidden } from '../lib/permissions.js';
 import { requireNotAdmin, requireTestResultModifier, requireNotAdminForEvidence } from '../lib/adminConstraints.js';
 
@@ -47,6 +47,12 @@ export async function executionRoutes(fastify) {
           return reply.code(404).send({ error: 'Execution not found' });
         }
 
+        request.params.projectId = execution.testRun?.projectId;
+        const projectAccess = await requireProjectAccess(request, reply);
+        if (projectAccess?.blocked) {
+          return;
+        }
+
         reply.send(execution);
       } catch (error) {
         console.error('Error fetching execution:', error);
@@ -90,6 +96,12 @@ export async function executionRoutes(fastify) {
 
         if (!execution) {
           return reply.code(404).send({ error: 'Execution not found' });
+        }
+
+        request.params.projectId = execution.testRun?.projectId;
+        const projectAccess = await requireProjectAccess(request, reply);
+        if (projectAccess?.blocked) {
+          return;
         }
 
         const testRun = await prisma.testRun.create({
@@ -149,6 +161,21 @@ export async function executionRoutes(fastify) {
       const { runId } = request.params;
 
       try {
+        const testRun = await prisma.testRun.findUnique({
+          where: { id: Number(runId) },
+          select: { projectId: true },
+        });
+
+        if (!testRun) {
+          return reply.code(404).send({ error: 'Test run not found' });
+        }
+
+        request.params.projectId = testRun.projectId;
+        const projectAccess = await requireProjectAccess(request, reply);
+        if (projectAccess?.blocked) {
+          return;
+        }
+
         const executions = await prisma.testExecution.findMany({
           where: { testRunId: Number(runId) },
           include: {
@@ -208,6 +235,21 @@ export async function executionRoutes(fastify) {
 
         if (!executionStep) {
           return reply.code(404).send({ error: 'Step not found' });
+        }
+
+        const testRun = await prisma.testRun.findUnique({
+          where: { id: Number(executionStep.execution.testRunId) },
+          select: { projectId: true },
+        });
+
+        if (!testRun) {
+          return reply.code(404).send({ error: 'Test run not found' });
+        }
+
+        request.params.projectId = testRun.projectId;
+        const projectAccess = await requireProjectAccess(request, reply);
+        if (projectAccess?.blocked) {
+          return;
         }
 
         // Update step with timing
@@ -283,13 +325,13 @@ export async function executionRoutes(fastify) {
         });
 
         // Update test run counts
-        const testRun = await prisma.testRun.findUnique({
+        const updatedTestRun = await prisma.testRun.findUnique({
           where: { id: updatedExecution.testRunId },
         });
 
-        if (testRun) {
+        if (updatedTestRun) {
           const allExecutions = await prisma.testExecution.findMany({
-            where: { testRunId: testRun.id },
+            where: { testRunId: updatedTestRun.id },
           });
 
           const runStats = allExecutions.reduce(
@@ -304,7 +346,7 @@ export async function executionRoutes(fastify) {
           );
 
           await prisma.testRun.update({
-            where: { id: testRun.id },
+            where: { id: updatedTestRun.id },
             data: {
               passedCount: runStats.passed,
               failedCount: runStats.failed,

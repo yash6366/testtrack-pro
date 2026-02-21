@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
+import { MessageCircle } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import ProjectSelector from '@/components/ProjectSelector';
 import NotificationCenter from '@/components/NotificationCenter';
+import { useProject } from '@/hooks';
 
 export default function DashboardLayout({
   user,
@@ -11,23 +13,27 @@ export default function DashboardLayout({
   onLogout,
   children,
 }) {
+  const { projects, loading: projectsLoading } = useProject();
   const isTester = String(user?.role || '').toUpperCase() === 'TESTER';
   const isDeveloper = String(user?.role || '').toUpperCase() === 'DEVELOPER';
   const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN';
+  const showProjectSelector = projectsLoading || projects.length > 1;
   
   const navLinks = [
     { to: '/dashboard', label: 'Dashboard' },
-    { to: '/test-suites', label: 'Test Suites' },
-    { to: '/bugs', label: 'Bugs' },
     { to: '/reports', label: 'Reports' },
     { to: '/chat', label: 'Chat' },
   ];
-  
-  // Add conditional links based on role
-  if (!isTester) {
-    navLinks.push({ to: '/analytics', label: 'Analytics' });
+
+  if (isAdmin) {
+    navLinks.splice(0, navLinks.length);
+  } else {
+    navLinks.splice(1, 0, { to: '/test-suites', label: 'Test Suites' });
+    navLinks.splice(2, 0, { to: '/bugs', label: 'Bugs' });
   }
-  if (isAdmin || isDeveloper) {
+
+  if (isDeveloper) {
+    navLinks.push({ to: '/analytics', label: 'Analytics' });
     navLinks.push({ to: '/api-keys', label: 'API Keys' });
     navLinks.push({ to: '/integrations', label: 'Integrations' });
   }
@@ -57,7 +63,17 @@ export default function DashboardLayout({
             ))}
           </div>
           <div className="flex items-center gap-4">
-            {(isTester) && <ProjectSelector />}
+            {showProjectSelector && <ProjectSelector />}
+            {isAdmin && (
+              <Link
+                to="/chat"
+                className="tt-btn tt-btn-outline px-2 py-2"
+                aria-label="Chat"
+                title="Chat"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </Link>
+            )}
             <NotificationCenter />
             <div className="text-right">
               <p className="text-xs text-[var(--muted)]">Welcome back</p>

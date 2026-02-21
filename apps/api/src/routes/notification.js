@@ -105,7 +105,7 @@ export async function notificationRoutes(fastify) {
         reply.send(updated);
       } catch (error) {
         console.error('Error marking notification as read:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -122,7 +122,7 @@ export async function notificationRoutes(fastify) {
         reply.send({ success: true, updated: result.count });
       } catch (error) {
         console.error('Error marking all as read:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -146,7 +146,7 @@ export async function notificationRoutes(fastify) {
         reply.code(204).send();
       } catch (error) {
         console.error('Error deleting notification:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -219,7 +219,7 @@ export async function notificationRoutes(fastify) {
         reply.send(updated);
       } catch (error) {
         console.error('Error updating preferences:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -298,7 +298,7 @@ export async function notificationRoutes(fastify) {
         reply.code(201).send(filter);
       } catch (error) {
         console.error('Error creating filter:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -322,7 +322,7 @@ export async function notificationRoutes(fastify) {
         reply.send(updated);
       } catch (error) {
         console.error('Error updating filter:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -346,7 +346,7 @@ export async function notificationRoutes(fastify) {
         reply.code(204).send();
       } catch (error) {
         console.error('Error deleting filter:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -375,7 +375,7 @@ export async function notificationRoutes(fastify) {
         });
       } catch (error) {
         console.error('Error applying filter:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -403,7 +403,7 @@ export async function notificationRoutes(fastify) {
         reply.send(schedule);
       } catch (error) {
         console.error('Error fetching digest schedule:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -420,7 +420,7 @@ export async function notificationRoutes(fastify) {
         reply.send(schedule);
       } catch (error) {
         console.error('Error updating digest schedule:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -438,7 +438,7 @@ export async function notificationRoutes(fastify) {
         reply.send(digest);
       } catch (error) {
         console.error('Error compiling digest:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -477,7 +477,7 @@ export async function notificationRoutes(fastify) {
         });
       } catch (error) {
         console.error('Error sending digest:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

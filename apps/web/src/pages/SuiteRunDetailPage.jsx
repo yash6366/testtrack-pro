@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function SuiteRunDetailPage() {
   const { suiteRunId } = useParams();
@@ -49,12 +51,22 @@ export default function SuiteRunDetailPage() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={() => navigate(`/test-suites/${report.suite.id}`)}
-          className="text-gray-600 hover:text-gray-900 mb-2"
-        >
-          ← Back to Suite
-        </button>
+        <div className="flex flex-col gap-3 mb-2">
+          <BackButton
+            label="Back to Test Suites"
+            fallback={report?.suite?.id ? `/test-suites/${report.suite.id}` : '/test-suites'}
+          />
+          <Breadcrumb
+            crumbs={[
+              { label: 'Dashboard', path: '/dashboard' },
+              { label: 'Test Suites', path: '/test-suites' },
+              report?.suite?.id
+                ? { label: report.suite.name || 'Suite', path: `/test-suites/${report.suite.id}` }
+                : { label: 'Suite', path: null },
+              { label: report?.name || `Suite Run #${report?.id}`, path: null },
+            ]}
+          />
+        </div>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">{report.name || `Suite Run #${report.id}`}</h1>

@@ -9,6 +9,8 @@ import StepResultSelector from '@/components/StepResultSelector';
 import ExecutionTimer from '@/components/ExecutionTimer';
 import TestExecutionComments from '@/components/TestExecutionComments';
 import BugCreationModal from '@/components/BugCreationModal';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 /**
  * TestExecution Page
@@ -296,12 +298,7 @@ export default function TestExecution() {
         <div className="tt-card max-w-md w-full p-6">
           <h1 className="text-2xl font-bold text-rose-600 mb-4">Error</h1>
           <p className="text-[var(--muted)] mb-6">{error}</p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="tt-btn tt-btn-primary w-full"
-          >
-            ← Back to Dashboard
-          </button>
+          <BackButton label="Back to Dashboard" fallback="/dashboard" className="w-full justify-center" />
         </div>
       </div>
     );
@@ -312,12 +309,9 @@ export default function TestExecution() {
       <div className="min-h-screen bg-[var(--bg)] p-6 flex items-center justify-center">
         <div className="tt-card max-w-md w-full p-6 text-center">
           <p className="text-[var(--muted)]">Execution not found</p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="tt-btn tt-btn-primary w-full mt-6"
-          >
-            ← Back to Dashboard
-          </button>
+          <div className="mt-6">
+            <BackButton label="Back to Dashboard" fallback="/dashboard" className="w-full justify-center" />
+          </div>
         </div>
       </div>
     );
@@ -340,6 +334,19 @@ export default function TestExecution() {
       {/* Header */}
       <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)] sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex flex-col gap-3 mb-4">
+            <BackButton label="Back to Reports" fallback="/reports" />
+            <Breadcrumb
+              crumbs={[
+                { label: 'Dashboard', path: '/dashboard' },
+                { label: 'Reports', path: '/reports' },
+                execution.testRun?.id
+                  ? { label: execution.testRun?.name || `Test Run #${execution.testRun.id}`, path: `/test-run/${execution.testRun.id}` }
+                  : { label: 'Test Run', path: null },
+                { label: execution.testCase?.name || 'Execution', path: null },
+              ]}
+            />
+          </div>
           <div className="flex items-center justify-between mb-4">
             <div className="flex-1">
               <h1 className="text-2xl font-bold mb-1">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ThemeToggle from '@/components/ThemeToggle';
 import { apiClient } from '../lib/apiClient';
+import BackButton from '@/components/ui/BackButton';
 
 export default function VerifyEmail() {
   const navigate = useNavigate();
@@ -70,12 +71,9 @@ export default function VerifyEmail() {
             <>
               <div className="text-[var(--danger)] text-5xl mb-4">✕</div>
               <p className="text-[var(--danger)] font-semibold">{message}</p>
-              <button
-                onClick={() => navigate('/signup')}
-                className="mt-4 text-[var(--primary)] font-semibold"
-              >
-                Back to Signup
-              </button>
+              <div className="mt-4">
+                <BackButton label="Back to Signup" fallback="/signup" />
+              </div>
             </>
           )}
         </div>

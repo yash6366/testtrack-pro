@@ -375,6 +375,186 @@ export const PERMISSIONS = {
   },
 
   // ============================================
+  // TEST PLANS
+  // ============================================
+  'testPlan:create': {
+    description: 'Create test plans',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'testPlan:read': {
+    description: 'Read test plans',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'testPlan:edit': {
+    description: 'Edit test plans',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'testPlan:delete': {
+    description: 'Delete test plans',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'testPlan:execute': {
+    description: 'Execute test plans (create runs)',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'testPlan:clone': {
+    description: 'Clone test plans',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+
+  // ============================================
+  // MILESTONES
+  // ============================================
+  'milestone:read': {
+    description: 'Read milestones',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'milestone:manage': {
+    description: 'Create/update/delete milestones',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+
+  // ============================================
+  // API KEYS
+  // ============================================
+  'apiKey:create': {
+    description: 'Create API keys',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'apiKey:read': {
+    description: 'Read API keys',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'apiKey:edit': {
+    description: 'Update API keys',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'apiKey:delete': {
+    description: 'Delete API keys',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'apiKey:revoke': {
+    description: 'Revoke API keys',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'apiKey:regenerate': {
+    description: 'Regenerate API keys',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'apiKey:stats': {
+    description: 'View API key usage stats',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+
+  // ============================================
+  // INTEGRATIONS & SEARCH
+  // ============================================
+  'github:manage': {
+    description: 'Manage GitHub integrations',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'webhook:manage': {
+    description: 'Manage webhooks',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'search:read': {
+    description: 'Search across project resources',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: true,
+      [ROLES.TESTER]: true,
+    },
+  },
+  'search:rebuild': {
+    description: 'Rebuild search index',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: false,
+      [ROLES.TESTER]: false,
+    },
+  },
+
+  // ============================================
+  // ADMIN
+  // ============================================
+  'admin:manage': {
+    description: 'Perform administrative actions',
+    roles: {
+      [ROLES.ADMIN]: true,
+      [ROLES.DEVELOPER]: false,
+      [ROLES.TESTER]: false,
+    },
+  },
+
+  // ============================================
   // REPORTING & METRICS
   // ============================================
   'report:execution': {

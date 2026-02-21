@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@/lib/apiClient';
 import { Settings, Bell, Lock, Palette } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -75,6 +76,10 @@ export default function SettingsPage() {
       headerSubtitle="Manage your account preferences and settings"
       onLogout={handleLogout}
     >
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
+
       {message.text && (
         <div
           className={`tt-card p-4 mb-6 ${
@@ -275,12 +280,11 @@ export default function SettingsPage() {
 
             {/* Save Button */}
             <div className="mt-8 pt-6 border-t border-[var(--border)] flex justify-end gap-3">
-              <button
-                onClick={() => navigate(-1)}
-                className="tt-btn-secondary"
-              >
-                Cancel
-              </button>
+              <BackButton
+                label="Cancel"
+                fallback="/dashboard"
+                className="tt-btn tt-btn-outline px-4 py-2"
+              />
               <button
                 onClick={handleSaveSettings}
                 disabled={saving}

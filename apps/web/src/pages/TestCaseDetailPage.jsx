@@ -3,11 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import { useProject } from '@/hooks';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function TestCaseDetailPage() {
   const { testCaseId } = useParams();
   const navigate = useNavigate();
   const { user, projectId: contextProjectId } = useAuth();
+  const { selectedProjectId } = useProject();
 
   const [testCase, setTestCase] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,7 +80,10 @@ export default function TestCaseDetailPage() {
       setError('');
       await apiClient.delete(`/api/test-cases/${testCaseId}`);
       setSuccessMessage('Test case deleted successfully');
-      setTimeout(() => navigate(-1), 2000);
+      const destination = contextProjectId || selectedProjectId || testCase?.projectId
+        ? `/projects/${contextProjectId || selectedProjectId || testCase?.projectId}/test-cases`
+        : '/dashboard';
+      setTimeout(() => navigate(destination), 2000);
     } catch (err) {
       setError(err.message || 'Failed to delete test case');
     } finally {
@@ -106,12 +113,7 @@ export default function TestCaseDetailPage() {
         headerTitle="Test Case Details"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Test Cases" fallback="/dashboard" />
           <div className="bg-red-50 dark:bg-red-900 border border-red-200 text-red-800 dark:text-red-200 px-4 py-3 rounded">
             {error}
           </div>
@@ -128,12 +130,7 @@ export default function TestCaseDetailPage() {
         headerTitle="Test Case Details"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Test Cases" fallback="/dashboard" />
           <div className="bg-gray-100 text-gray-800 px-4 py-3 rounded">
             Test case not found
           </div>
@@ -150,13 +147,26 @@ export default function TestCaseDetailPage() {
       headerSubtitle={testCase.description}
     >
       <div className="p-6 space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-        >
-          ← Back
-        </button>
+        <div className="flex flex-col gap-3">
+          <BackButton
+            label="Back to Test Cases"
+            fallback={testCase?.projectId
+              ? `/projects/${testCase.projectId}/test-cases`
+              : '/dashboard'}
+          />
+          <Breadcrumb
+            crumbs={[
+              { label: 'Dashboard', path: '/dashboard' },
+              {
+                label: 'Test Cases',
+                path: testCase?.projectId
+                  ? `/projects/${testCase.projectId}/test-cases`
+                  : '/dashboard',
+              },
+              { label: testCase?.title || 'Test Case', path: null },
+            ]}
+          />
+        </div>
 
         {/* Messages */}
         {error && (

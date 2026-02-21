@@ -1,17 +1,6 @@
-# OAuth Integration Guide - Neon Auth
+# OAuth Integration Guide
 
-This guide covers setting up OAuth 2.0 authentication with Google and GitHub providers using Neon Auth in TestTrack Pro.
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Setup Google OAuth](#setup-google-oauth)
-3. [Setup GitHub OAuth](#setup-github-oauth)
-4. [Environment Configuration](#environment-configuration)
-5. [API Endpoints](#api-endpoints)
-6. [Frontend Integration](#frontend-integration)
-
-## Overview
+This guide covers setting up OAuth 2.0 authentication with Google and GitHub providers in TestTrack Pro v0.6.2+.
 
 The OAuth integration allows users to sign up and log in using their Google or GitHub accounts. The system:
 
@@ -20,6 +9,8 @@ The OAuth integration allows users to sign up and log in using their Google or G
 - Manages multiple OAuth providers per user
 - Maintains email verification status
 - Stores OAuth provider metadata in the database
+
+**Note:** OAuth setup is independent of the new v0.6.2 features (bug fix documentation, developer analytics, flaky test detection). These features work with both OAuth and traditional email/password authentication.
 
 ## Setup Google OAuth
 

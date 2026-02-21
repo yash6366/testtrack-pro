@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function BugDetailsPage() {
   const { bugId } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [bug, setBug] = useState(null);
@@ -167,12 +168,9 @@ export default function BugDetailsPage() {
         <div className="tt-card p-6 max-w-md">
           <h2 className="text-red-600 font-bold mb-2">Error</h2>
           <p>{error}</p>
-          <button
-            onClick={() => navigate(-1)}
-            className="tt-btn tt-btn-primary mt-4 w-full"
-          >
-            Go Back
-          </button>
+          <div className="mt-4">
+            <BackButton label="Back to Bugs" fallback="/bugs" className="w-full justify-center" />
+          </div>
         </div>
       </div>
     );
@@ -199,6 +197,17 @@ export default function BugDetailsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg)] p-6">
       <div className="max-w-6xl mx-auto">
+        <div className="mb-4 flex flex-col gap-3">
+          <BackButton label="Back to Bugs" fallback="/bugs" />
+          <Breadcrumb
+            crumbs={[
+              { label: 'Dashboard', path: '/dashboard' },
+              { label: 'Bugs', path: '/bugs' },
+              { label: `#${bug.bugNumber}`, path: null },
+            ]}
+          />
+        </div>
+
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">
           <div className="flex-1">
@@ -223,12 +232,6 @@ export default function BugDetailsPage() {
             </h2>
             <p className="text-[var(--muted)]">{bug.description}</p>
           </div>
-          <button
-            onClick={() => navigate(-1)}
-            className="tt-btn tt-btn-secondary"
-          >
-            ← Back
-          </button>
         </div>
 
         {/* Quick Info Grid */}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 /**
  * TestCaseTemplateManagement Component
@@ -49,13 +49,12 @@ export default function TestCaseTemplateManagement() {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get(
-        `/api/tester/projects/${projectId}/templates`,
-        { params: { isActive: true } }
+      const data = await apiClient.get(
+        `/api/tester/projects/${projectId}/templates?isActive=true`
       );
-      setTemplates(response.data.templates || []);
+      setTemplates(data.templates || []);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load templates');
+      setError(err.message || 'Failed to load templates');
     } finally {
       setLoading(false);
     }
@@ -72,7 +71,7 @@ export default function TestCaseTemplateManagement() {
         tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
       };
 
-      await axios.post(
+      await apiClient.post(
         `/api/tester/projects/${projectId}/templates`,
         templateData
       );
@@ -82,7 +81,7 @@ export default function TestCaseTemplateManagement() {
       resetForm();
       loadTemplates();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create template');
+      setError(err.message || 'Failed to create template');
     }
   };
 
@@ -97,7 +96,7 @@ export default function TestCaseTemplateManagement() {
         tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
       };
 
-      await axios.patch(
+      await apiClient.patch(
         `/api/tester/templates/${editingTemplate.id}`,
         templateData
       );
@@ -107,7 +106,7 @@ export default function TestCaseTemplateManagement() {
       resetForm();
       loadTemplates();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update template');
+      setError(err.message || 'Failed to update template');
     }
   };
 
@@ -117,11 +116,11 @@ export default function TestCaseTemplateManagement() {
     }
 
     try {
-      await axios.delete(`/api/tester/templates/${id}`);
+      await apiClient.delete(`/api/tester/templates/${id}`);
       setSuccess('Template deleted successfully');
       loadTemplates();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete template');
+      setError(err.message || 'Failed to delete template');
     }
   };
 
@@ -130,7 +129,7 @@ export default function TestCaseTemplateManagement() {
     setError('');
 
     try {
-      const response = await axios.post(
+      await apiClient.post(
         `/api/tester/templates/${selectedTemplate.id}/create-test-case`,
         {
           projectId: Number(projectId),
@@ -142,7 +141,7 @@ export default function TestCaseTemplateManagement() {
       setShowUseModal(false);
       setUseFormData({ testCaseName: '' });
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create test case from template');
+      setError(err.message || 'Failed to create test case from template');
     }
   };
 

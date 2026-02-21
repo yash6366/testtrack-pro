@@ -14,6 +14,7 @@ import {
   getTestPlanRuns,
 } from '../services/testPlanService.js';
 import { createAuthGuards } from '../lib/rbac.js';
+import { requirePermission } from '../lib/policy.js';
 import { errorResponse, bearerAuth } from '../schemas/common.js';
 
 const { requireAuth, requireProjectRole } = createAuthGuards();
@@ -49,15 +50,14 @@ async function testPlanRoutes(fastify) {
   // Create test plan
   fastify.post(
     '/api/projects/:projectId/test-plans',
-    { schema: { tags: ['test-plans'], summary: 'Create test plan' } },
+    { schema: { tags: ['test-plans'], summary: 'Create test plan' }, preHandler: [requirePermission('testPlan:create')] },
     async (request, reply) => {
       try {
-        await requireAuth(request);
         const { projectId } = request.params;
-        const testPlan = await createTestPlan({ projectId: Number(projectId), ...request.body }, request.user.id);
+        const testPlan = await createTestPlan({ projectId: Number(projectId), ...request.body }, request.user.id, request.permissionContext);
         reply.code(201).send(testPlan);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -68,13 +68,13 @@ async function testPlanRoutes(fastify) {
     { schema: { tags: ['test-plans'], summary: 'Get test plans' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
         const { skip = 0, take = 20, status, search } = request.query;
         const result = await getProjectTestPlans(projectId, { status, search }, { skip: Number(skip), take: Number(take) });
         reply.send(result);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -85,12 +85,13 @@ async function testPlanRoutes(fastify) {
     { schema: { tags: ['test-plans'], summary: 'Get test plan' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { testPlanId } = request.params;
-        const testPlan = await getTestPlanById(testPlanId);
+        const { projectId } = request.params;
+        const testPlan = await getTestPlanById(testPlanId, projectId);
         reply.send(testPlan);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -98,15 +99,15 @@ async function testPlanRoutes(fastify) {
   // Update test plan
   fastify.patch(
     '/api/projects/:projectId/test-plans/:testPlanId',
-    { schema: { tags: ['test-plans'], summary: 'Update test plan' } },
+    { schema: { tags: ['test-plans'], summary: 'Update test plan' }, preHandler: [requirePermission('testPlan:edit')] },
     async (request, reply) => {
       try {
-        await requireAuth(request);
         const { testPlanId } = request.params;
-        const testPlan = await updateTestPlan(testPlanId, request.body, request.user.id);
+        const { projectId } = request.params;
+        const testPlan = await updateTestPlan(testPlanId, request.body, request.user.id, projectId, request.permissionContext);
         reply.send(testPlan);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -114,15 +115,15 @@ async function testPlanRoutes(fastify) {
   // Delete test plan
   fastify.delete(
     '/api/projects/:projectId/test-plans/:testPlanId',
-    { schema: { tags: ['test-plans'], summary: 'Delete test plan' } },
+    { schema: { tags: ['test-plans'], summary: 'Delete test plan' }, preHandler: [requirePermission('testPlan:delete')] },
     async (request, reply) => {
       try {
-        await requireAuth(request);
         const { testPlanId } = request.params;
-        await deleteTestPlan(testPlanId, request.user.id);
+        const { projectId } = request.params;
+        await deleteTestPlan(testPlanId, request.user.id, projectId, request.permissionContext);
         reply.send({ success: true });
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -130,15 +131,15 @@ async function testPlanRoutes(fastify) {
   // Execute test plan (create test run)
   fastify.post(
     '/api/projects/:projectId/test-plans/:testPlanId/execute',
-    { schema: { tags: ['test-plans'], summary: 'Execute test plan', body: { type: 'object' } } },
+    { schema: { tags: ['test-plans'], summary: 'Execute test plan', body: { type: 'object' } }, preHandler: [requirePermission('testPlan:execute')] },
     async (request, reply) => {
       try {
-        await requireAuth(request);
         const { testPlanId } = request.params;
-        const result = await executeTestPlan(testPlanId, request.body, request.user.id);
+        const { projectId } = request.params;
+        const result = await executeTestPlan(testPlanId, request.body, request.user.id, projectId, request.permissionContext);
         reply.code(201).send(result);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -146,15 +147,15 @@ async function testPlanRoutes(fastify) {
   // Clone test plan
   fastify.post(
     '/api/projects/:projectId/test-plans/:testPlanId/clone',
-    { schema: { tags: ['test-plans'], summary: 'Clone test plan' } },
+    { schema: { tags: ['test-plans'], summary: 'Clone test plan' }, preHandler: [requirePermission('testPlan:clone')] },
     async (request, reply) => {
       try {
-        await requireAuth(request);
         const { testPlanId } = request.params;
-        const cloned = await cloneTestPlan(testPlanId, request.user.id);
+        const { projectId } = request.params;
+        const cloned = await cloneTestPlan(testPlanId, request.user.id, projectId, request.permissionContext);
         reply.code(201).send(cloned);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -165,12 +166,13 @@ async function testPlanRoutes(fastify) {
     { schema: { tags: ['test-plans'], summary: 'Get test plan runs' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { testPlanId } = request.params;
-        const runs = await getTestPlanRuns(testPlanId);
+        const { projectId } = request.params;
+        const runs = await getTestPlanRuns(testPlanId, projectId);
         reply.send(runs);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

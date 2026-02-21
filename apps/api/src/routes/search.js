@@ -4,6 +4,7 @@
  */
 
 import { createAuthGuards } from '../lib/rbac.js';
+import { requirePermission } from '../lib/policy.js';
 import {
   globalSearch,
   getSearchSuggestions,
@@ -11,14 +12,14 @@ import {
 } from '../services/searchService.js';
 
 export async function searchRoutes(fastify) {
-  const { requireAuth, requireRoles } = createAuthGuards(fastify);
+  const { requireAuth } = createAuthGuards(fastify);
 
   /**
    * Global search across test cases, bugs, and executions
    */
   fastify.get(
     '/api/search',
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuth, requirePermission('search:read')] },
     async (request, reply) => {
       try {
         const { projectId, q, types, skip, take } = request.query;
@@ -48,7 +49,7 @@ export async function searchRoutes(fastify) {
         reply.send(results);
       } catch (error) {
         console.error('Error performing search:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -58,7 +59,7 @@ export async function searchRoutes(fastify) {
    */
   fastify.get(
     '/api/search/suggestions',
-    { preHandler: [requireAuth] },
+    { preHandler: [requireAuth, requirePermission('search:read')] },
     async (request, reply) => {
       try {
         const { projectId, q, types } = request.query;
@@ -77,7 +78,7 @@ export async function searchRoutes(fastify) {
         reply.send({ suggestions });
       } catch (error) {
         console.error('Error fetching suggestions:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -87,7 +88,7 @@ export async function searchRoutes(fastify) {
    */
   fastify.post(
     '/api/search/rebuild/:projectId',
-    { preHandler: [requireAuth, requireRoles(['ADMIN'])] },
+    { preHandler: [requireAuth, requirePermission('search:rebuild')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;

@@ -25,6 +25,7 @@ export async function indexTestCase(testCaseId, projectId) {
         type: true,
         priority: true,
         isDeleted: true,
+        projectId: true,
       },
     });
 
@@ -56,15 +57,15 @@ export async function indexTestCase(testCaseId, projectId) {
       create: {
         resourceType: 'TEST_CASE',
         resourceId: testCaseId,
-        projectId,
+        projectId: testCase.projectId,
         title: testCase.name,
-        content: searchableContent,
-        tags: testCase.tags || [],
+        description: searchableContent,
+        searchText: searchableContent,
       },
       update: {
         title: testCase.name,
-        content: searchableContent,
-        tags: testCase.tags || [],
+        description: searchableContent,
+        searchText: searchableContent,
         updatedAt: new Date(),
       },
     });
@@ -90,6 +91,7 @@ export async function indexBug(bugId, projectId) {
         severity: true,
         priority: true,
         status: true,
+        projectId: true,
       },
     });
 
@@ -122,15 +124,15 @@ export async function indexBug(bugId, projectId) {
       create: {
         resourceType: 'BUG',
         resourceId: bugId,
-        projectId,
+        projectId: bug.projectId,
         title: bug.bugNumber + ': ' + bug.title,
-        content: searchableContent,
-        tags: [bug.severity, bug.priority, bug.status],
+        description: searchableContent,
+        searchText: searchableContent,
       },
       update: {
         title: bug.bugNumber + ': ' + bug.title,
-        content: searchableContent,
-        tags: [bug.severity, bug.priority, bug.status],
+        description: searchableContent,
+        searchText: searchableContent,
         updatedAt: new Date(),
       },
     });
@@ -152,7 +154,8 @@ export async function indexTestExecution(executionId, projectId) {
         id: true,
         testCase: { select: { name: true } },
         status: true,
-        executedBy: { select: { name: true } },
+        executor: { select: { name: true } },
+        testRun: { select: { projectId: true } },
       },
     });
 
@@ -167,7 +170,7 @@ export async function indexTestExecution(executionId, projectId) {
     const searchableContent = [
       execution.testCase?.name,
       execution.status,
-      execution.executedBy?.name,
+      execution.executor?.name,
     ]
       .filter(Boolean)
       .join(' ');
@@ -182,15 +185,15 @@ export async function indexTestExecution(executionId, projectId) {
       create: {
         resourceType: 'EXECUTION',
         resourceId: executionId,
-        projectId,
+        projectId: execution.testRun.projectId,
         title: `Execution: ${execution.testCase?.name || 'Unknown'}`,
-        content: searchableContent,
-        tags: [execution.status],
+        description: searchableContent,
+        searchText: searchableContent,
       },
       update: {
         title: `Execution: ${execution.testCase?.name || 'Unknown'}`,
-        content: searchableContent,
-        tags: [execution.status],
+        description: searchableContent,
+        searchText: searchableContent,
         updatedAt: new Date(),
       },
     });
@@ -265,7 +268,7 @@ export async function rebuildProjectIndex(projectId) {
       testCasesIndexed: testCases.length,
       bugsIndexed: bugs.length,
       executionsIndexed: executions.length,
-      total: totalIndexed,
+      total: testCases.length + bugs.length + executions.length,
     };
   } catch (error) {
     throw error;
@@ -295,8 +298,8 @@ export async function searchIndex(projectId, query, resourceTypes = ['TEST_CASE'
         resourceType: { in: resourceTypes },
         OR: [
           { title: { contains: searchQuery, mode: 'insensitive' } },
-          { content: { contains: searchQuery, mode: 'insensitive' } },
-          { tags: { hasSome: [searchQuery] } },
+          { description: { contains: searchQuery, mode: 'insensitive' } },
+          { searchText: { contains: searchQuery, mode: 'insensitive' } },
         ],
       },
       skip: Number(skip),

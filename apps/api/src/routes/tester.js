@@ -5,6 +5,7 @@
 
 import { getPrismaClient } from '../lib/prisma.js';
 import { createAuthGuards } from '../lib/rbac.js';
+import { requirePermission } from '../lib/policy.js';
 import {
   generateExecutionReport,
   generateTesterPerformanceReport,
@@ -196,7 +197,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.post(
     '/api/tester/projects/:projectId/test-cases',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testCase:create')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -209,13 +210,14 @@ export async function testerRoutes(fastify) {
             ownedById: userId, // Owner is the creator
           },
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext
         );
 
         reply.code(201).send(testCase);
       } catch (error) {
         console.error('Error creating test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -225,19 +227,33 @@ export async function testerRoutes(fastify) {
    */
   fastify.patch(
     '/api/tester/test-cases/:testCaseId',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testCase:edit')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
         const userId = request.user.id;
 
-        // Check authorization
+        // Check authorization - fetch with project to validate access
         const testCase = await prisma.testCase.findUnique({
           where: { id: Number(testCaseId) },
+          include: {
+            project: {
+              include: {
+                userAllocations: {
+                  where: { userId, isActive: true },
+                },
+              },
+            },
+          },
         });
 
         if (!testCase) {
           return reply.code(404).send({ error: 'Test case not found' });
+        }
+
+        // Verify user has access to the project
+        if (!testCase.project?.userAllocations?.length) {
+          return reply.code(403).send({ error: 'Not authorized to access this project' });
         }
 
         // Check if user is owner or assigned to test case
@@ -249,13 +265,14 @@ export async function testerRoutes(fastify) {
           Number(testCaseId),
           request.body,
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext
         );
 
         reply.send(updated);
       } catch (error) {
         console.error('Error updating test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -265,7 +282,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.patch(
     '/api/tester/test-cases/:testCaseId/assign',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testCase:assign')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
@@ -280,13 +297,14 @@ export async function testerRoutes(fastify) {
           Number(testCaseId),
           assignedToId,
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext
         );
 
         reply.send(updated);
       } catch (error) {
         console.error('Error assigning test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -296,7 +314,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.patch(
     '/api/tester/test-cases/:testCaseId/owner',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testCase:assign')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
@@ -307,12 +325,27 @@ export async function testerRoutes(fastify) {
           return reply.code(400).send({ error: 'ownedById is required' });
         }
 
+        // Fetch with project to validate access
         const testCase = await prisma.testCase.findUnique({
           where: { id: Number(testCaseId) },
+          include: {
+            project: {
+              include: {
+                userAllocations: {
+                  where: { userId, isActive: true },
+                },
+              },
+            },
+          },
         });
 
         if (!testCase) {
           return reply.code(404).send({ error: 'Test case not found' });
+        }
+
+        // Verify user has access to the project
+        if (!testCase.project?.userAllocations?.length) {
+          return reply.code(403).send({ error: 'Not authorized to access this project' });
         }
 
         // Only owner can change ownership
@@ -324,13 +357,14 @@ export async function testerRoutes(fastify) {
           Number(testCaseId),
           ownedById,
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext
         );
 
         reply.send(updated);
       } catch (error) {
         console.error('Error setting test case owner:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -340,7 +374,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.post(
     '/api/tester/projects/:projectId/test-cases/import',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testCase:import')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -355,13 +389,14 @@ export async function testerRoutes(fastify) {
           Number(projectId),
           csvContent,
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext
         );
 
         reply.code(201).send(results);
       } catch (error) {
         console.error('Error importing test cases:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -442,7 +477,7 @@ export async function testerRoutes(fastify) {
         reply.code(201).send(testCase);
       } catch (error) {
         console.error('Error creating test case from template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -452,7 +487,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.post(
     '/api/tester/projects/:projectId/templates',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testPlan:create')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -464,13 +499,14 @@ export async function testerRoutes(fastify) {
             projectId: Number(projectId),
           },
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext,
         );
 
         reply.code(201).send(template);
       } catch (error) {
         console.error('Error creating template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -480,7 +516,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.patch(
     '/api/tester/templates/:templateId',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testPlan:edit')] },
     async (request, reply) => {
       try {
         const { templateId } = request.params;
@@ -490,13 +526,14 @@ export async function testerRoutes(fastify) {
           Number(templateId),
           request.body,
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext,
         );
 
         reply.send(updated);
       } catch (error) {
         console.error('Error updating template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -506,7 +543,7 @@ export async function testerRoutes(fastify) {
    */
   fastify.delete(
     '/api/tester/templates/:templateId',
-    { preHandler: [requireAuth, requireRoles(['TESTER'])] },
+    { preHandler: [requirePermission('testPlan:delete')] },
     async (request, reply) => {
       try {
         const { templateId } = request.params;
@@ -515,13 +552,14 @@ export async function testerRoutes(fastify) {
         await deleteTestCaseTemplate(
           Number(templateId),
           userId,
-          getClientContext(request)
+          getClientContext(request),
+          request.permissionContext,
         );
 
         reply.code(204).send();
       } catch (error) {
         console.error('Error deleting template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -966,7 +1004,7 @@ export async function testerRoutes(fastify) {
         reply.send(report);
       } catch (error) {
         console.error('Error generating report:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

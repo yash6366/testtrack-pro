@@ -53,7 +53,12 @@ const createMilestoneSchema = {
   tags: ['milestones'],
   summary: 'Create a new milestone',
   description: 'Create a new milestone in a project',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['name'],
@@ -80,7 +85,12 @@ const getMilestonesSchema = {
   tags: ['milestones'],
   summary: 'Get milestones for a project',
   description: 'Retrieve all milestones in a project with filtering and sorting',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   querystring: {
     type: 'object',
     properties: {
@@ -113,8 +123,11 @@ const getMilestoneSchema = {
   summary: 'Get milestone details',
   description: 'Retrieve a specific milestone with all related test cases and defects',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    milestoneId: { type: 'string', description: 'Milestone ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      milestoneId: { type: 'string', description: 'Milestone ID' },
+    },
   },
   response: {
     200: {
@@ -148,8 +161,11 @@ const updateMilestoneSchema = {
   summary: 'Update a milestone',
   description: 'Update milestone details',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    milestoneId: { type: 'string', description: 'Milestone ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      milestoneId: { type: 'string', description: 'Milestone ID' },
+    },
   },
   body: {
     type: 'object',
@@ -178,8 +194,11 @@ const deleteMilestoneSchema = {
   summary: 'Delete a milestone',
   description: 'Delete a milestone (unassigns all related items)',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    milestoneId: { type: 'string', description: 'Milestone ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      milestoneId: { type: 'string', description: 'Milestone ID' },
+    },
   },
   response: {
     200: {
@@ -197,8 +216,11 @@ const assignItemsSchema = {
   summary: 'Assign items to milestone',
   description: 'Assign test cases or defects to a milestone',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    milestoneId: { type: 'string', description: 'Milestone ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      milestoneId: { type: 'string', description: 'Milestone ID' },
+    },
   },
   body: {
     type: 'object',
@@ -226,8 +248,11 @@ const progressSchema = {
   summary: 'Get milestone progress',
   description: 'Get the completion progress of a milestone',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    milestoneId: { type: 'string', description: 'Milestone ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      milestoneId: { type: 'string', description: 'Milestone ID' },
+    },
   },
   response: {
     200: {
@@ -252,7 +277,12 @@ const summarySchema = {
   tags: ['milestones'],
   summary: 'Get project milestones summary',
   description: 'Get a summary of all milestones in a project',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   response: {
     200: {
       description: 'Summary retrieved successfully',
@@ -281,15 +311,15 @@ async function milestoneRoutes(fastify) {
     { schema: createMilestoneSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
-        await requireProjectRole(request, 'PROJECT_MANAGER');
+        await requireAuth(request, reply);
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const { projectId } = request.params;
         const milestone = await createMilestone(request.body, request.user.id);
 
         reply.code(201).send(milestone);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -300,7 +330,7 @@ async function milestoneRoutes(fastify) {
     { schema: getMilestonesSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
 
         const { projectId } = request.params;
         const { skip, take, status, priority, search, sortBy, sortOrder } = request.query;
@@ -313,7 +343,7 @@ async function milestoneRoutes(fastify) {
 
         reply.send(result);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -324,12 +354,12 @@ async function milestoneRoutes(fastify) {
     { schema: getMilestoneSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
 
         const milestone = await getMilestoneById(request.params.milestoneId);
         reply.send(milestone);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -340,15 +370,15 @@ async function milestoneRoutes(fastify) {
     { schema: updateMilestoneSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
-        await requireProjectRole(request, 'PROJECT_MANAGER');
+        await requireAuth(request, reply);
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const { milestoneId } = request.params;
         const updated = await updateMilestone(milestoneId, request.body, request.user.id);
 
         reply.send(updated);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -359,15 +389,15 @@ async function milestoneRoutes(fastify) {
     { schema: deleteMilestoneSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
-        await requireProjectRole(request, 'PROJECT_MANAGER');
+        await requireAuth(request, reply);
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const { milestoneId } = request.params;
         await deleteMilestone(milestoneId, request.user.id);
 
         reply.send({ success: true });
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -378,8 +408,8 @@ async function milestoneRoutes(fastify) {
     { schema: assignItemsSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
-        await requireProjectRole(request, 'PROJECT_MANAGER');
+        await requireAuth(request, reply);
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const { milestoneId } = request.params;
         const { ids } = request.body;
@@ -387,7 +417,7 @@ async function milestoneRoutes(fastify) {
         await assignTestCasesToMilestone(milestoneId, ids, request.user.id);
         reply.send({ success: true, assigned: ids.length });
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -398,8 +428,8 @@ async function milestoneRoutes(fastify) {
     { schema: assignItemsSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
-        await requireProjectRole(request, 'PROJECT_MANAGER');
+        await requireAuth(request, reply);
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const { milestoneId } = request.params;
         const { ids } = request.body;
@@ -407,7 +437,7 @@ async function milestoneRoutes(fastify) {
         await assignDefectsToMilestone(milestoneId, ids, request.user.id);
         reply.send({ success: true, assigned: ids.length });
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -418,14 +448,14 @@ async function milestoneRoutes(fastify) {
     { schema: progressSchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
 
         const { milestoneId } = request.params;
         const progress = await getMilestoneProgress(milestoneId);
 
         reply.send(progress);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -436,14 +466,14 @@ async function milestoneRoutes(fastify) {
     { schema: summarySchema },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
 
         const { projectId } = request.params;
         const summary = await getProjectMilestonesSummary(projectId);
 
         reply.send(summary);
       } catch (error) {
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

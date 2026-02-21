@@ -10,7 +10,12 @@ const createTestRunSchema = {
   tags: ['test-runs'],
   summary: 'Create a new test run',
   description: 'Create a test run with selected test cases',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['name', 'testCaseIds'],
@@ -47,7 +52,12 @@ const getTestRunsSchema = {
   tags: ['test-runs'],
   summary: 'Get test runs for a project',
   description: 'Retrieve all test runs with pagination and filtering',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   querystring: {
     type: 'object',
     properties: {
@@ -75,8 +85,11 @@ const getTestRunSchema = {
   summary: 'Get a specific test run',
   description: 'Retrieve detailed information about a test run and its executions',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testRunId: { type: 'string', description: 'Test run ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testRunId: { type: 'string', description: 'Test run ID' },
+    },
   },
   response: {
     200: {
@@ -93,8 +106,11 @@ const updateTestRunSchema = {
   summary: 'Update a test run',
   description: 'Update test run details (name, description, status)',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testRunId: { type: 'string', description: 'Test run ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testRunId: { type: 'string', description: 'Test run ID' },
+    },
   },
   body: {
     type: 'object',

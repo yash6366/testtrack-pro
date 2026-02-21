@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../hooks/useProject';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingState from '@/components/common/LoadingState';
+import { FolderKanban } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function BugsPage() {
   const navigate = useNavigate();
@@ -12,12 +17,20 @@ export default function BugsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [total, setTotal] = useState(0);
-  
-  const projectId = searchParams.get('projectId') || localStorage.getItem('selectedProjectId');
+
+  const { selectedProjectId, setActiveProjectId, loading: projectLoading } = useProject();
+  const searchProjectId = searchParams.get('projectId');
+  const projectId = searchProjectId || selectedProjectId;
   const page = Number(searchParams.get('page')) || 1;
   const status = searchParams.get('status') || '';
   const priority = searchParams.get('priority') || '';
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (searchProjectId) {
+      setActiveProjectId(searchProjectId);
+    }
+  }, [searchProjectId, setActiveProjectId]);
 
   useEffect(() => {
     loadBugs();
@@ -25,7 +38,6 @@ export default function BugsPage() {
 
   const loadBugs = async () => {
     if (!projectId) {
-      setError('No project selected');
       setLoading(false);
       return;
     }
@@ -55,6 +67,7 @@ export default function BugsPage() {
   };
 
   const handleStatusFilterChange = (newStatus) => {
+    if (!projectId) return;
     navigate(`/bugs?projectId=${projectId}&status=${newStatus}`);
   };
 
@@ -84,17 +97,40 @@ export default function BugsPage() {
     TRIVIAL: 'text-gray-600 dark:text-gray-400'
   };
 
-  if (loading) {
+  if (projectLoading) {
+    return <LoadingState className="min-h-screen" message="Loading projects..." />;
+  }
+
+  if (!projectId) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin w-12 h-12 border-4 border-[var(--border)] border-t-blue-500 rounded-full" />
+      <div className="min-h-screen bg-[var(--bg)] p-6">
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+        <div className="max-w-3xl mx-auto">
+          <EmptyState
+            icon={FolderKanban}
+            title="No project selected"
+            description="Select or create a project to view bugs."
+            actionLabel="Select Project"
+            onAction={() => navigate('/projects')}
+          />
+        </div>
       </div>
     );
   }
 
+  if (loading) {
+    return <LoadingState className="min-h-screen" message="Loading bugs..." />;
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] p-6">
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-[var(--foreground)]">Bug Management</h1>

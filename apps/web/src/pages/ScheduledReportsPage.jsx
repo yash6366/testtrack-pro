@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiClient } from '../lib/apiClient';
 import DashboardLayout from '../components/DashboardLayout';
 import VirtualizedTable from '../components/VirtualizedTable';
+import BackButton from '@/components/ui/BackButton';
 
 export default function ScheduledReportsPage() {
   const navigate = useNavigate();
@@ -232,6 +233,9 @@ export default function ScheduledReportsPage() {
     return (
       <DashboardLayout>
         <div className="tt-container">
+          <div className="mb-4">
+            <BackButton label="Back to Dashboard" fallback="/dashboard" />
+          </div>
           <div className="tt-card px-6 py-8 text-center">
             <p className="text-[var(--muted)]">No project selected. Please select a project and try again.</p>
           </div>
@@ -243,6 +247,10 @@ export default function ScheduledReportsPage() {
   return (
     <DashboardLayout>
       <div className="tt-container">
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <h1 className="tt-heading">Scheduled Reports</h1>

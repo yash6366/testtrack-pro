@@ -19,6 +19,7 @@ import { useMilestones } from '../hooks/useMilestones';
 import MilestoneDetailsModal from '../components/MilestoneDetailsModal';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
+import BackButton from '@/components/ui/BackButton';
 
 export default function MilestonesPage() {
   const { projectId } = useParams();
@@ -137,6 +138,8 @@ export default function MilestonesPage() {
 
   return (
     <div className="space-y-6">
+      <BackButton label="Back to Dashboard" fallback="/dashboard" />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Milestones</h1>

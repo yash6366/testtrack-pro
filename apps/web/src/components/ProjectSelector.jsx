@@ -1,61 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks';
-import { apiClient } from '@/lib/apiClient';
+import { useState } from 'react';
+import { useProject } from '@/hooks';
 import { FolderKanban, ChevronDown } from 'lucide-react';
 
 export default function ProjectSelector({ onProjectChange }) {
-  const { user } = useAuth();
-  const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { projects, selectedProject, loading, setActiveProjectId } = useProject();
   const [showDropdown, setShowDropdown] = useState(false);
 
-  useEffect(() => {
-    fetchProjects();
-  },[]);
-
-  useEffect(() => {
-    // Load selected project from localStorage on mount
-    const savedProjectId = localStorage.getItem('selectedProjectId');
-    if (savedProjectId && projects.length > 0) {
-      const project = projects.find((p) => p.id === Number(savedProjectId));
-      if (project) {
-        setSelectedProject(project);
-      } else if (projects.length > 0) {
-        // If saved project not found, select first one
-        handleSelectProject(projects[0]);
-      }
-    } else if (projects.length > 0) {
-      // Auto-select first project if none selected
-      handleSelectProject(projects[0]);
-    }
-  }, [projects]);
-
-  async function fetchProjects() {
-    try {
-      setLoading(true);
-      
-      const normalizedRole = String(user?.role || '').toUpperCase();
-
-      if (normalizedRole === 'ADMIN') {
-        const data = await apiClient.get('/api/admin/projects?take=100');
-        setProjects(data.projects || []);
-        return;
-      }
-
-      const data = await apiClient.get('/api/tester/projects?take=100');
-      setProjects(data.projects || []);
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-      setProjects([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function handleSelectProject(project) {
-    setSelectedProject(project);
-    localStorage.setItem('selectedProjectId', project.id.toString());
+    setActiveProjectId(project.id);
     setShowDropdown(false);
     if (onProjectChange) {
       onProjectChange(project);
@@ -75,6 +27,18 @@ export default function ProjectSelector({ onProjectChange }) {
     return (
       <div className="px-4 py-2 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-lg">
         <p className="text-sm text-[var(--warning)]">No projects assigned. Contact your admin.</p>
+      </div>
+    );
+  }
+
+  if (projects.length === 1 && selectedProject) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg min-w-[250px]">
+        <FolderKanban className="w-4 h-4 text-[var(--primary)]" />
+        <div>
+          <div className="text-sm font-semibold">{selectedProject.name}</div>
+          <div className="text-xs text-[var(--muted)]">{selectedProject.key}</div>
+        </div>
       </div>
     );
   }

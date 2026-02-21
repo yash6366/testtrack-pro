@@ -5,6 +5,7 @@
 
 import { getPrismaClient } from '../lib/prisma.js';
 import { logAuditAction } from './auditService.js';
+import { assertPermissionContext } from '../lib/policy.js';
 import crypto from 'crypto';
 
 const prisma = getPrismaClient();
@@ -20,7 +21,12 @@ function hashApiKey(key) {
 }
 
 // Create new API key
-export async function createApiKey(projectId, data, userId) {
+export async function createApiKey(projectId, data, userId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'apiKey:create', { projectId });
+
   const { name, expiresAt, rateLimit = 1000 } = data;
 
   if (!projectId || !name) {
@@ -114,9 +120,9 @@ export async function getProjectApiKeys(projectId, filters = {}, pagination = {}
 }
 
 // Get single API key
-export async function getApiKeyById(apiKeyId) {
-  const key = await prisma.apiKey.findUnique({
-    where: { id: Number(apiKeyId) },
+export async function getApiKeyById(apiKeyId, projectId) {
+  const key = await prisma.apiKey.findFirst({
+    where: { id: Number(apiKeyId), projectId: Number(projectId) },
     include: { creator: { select: { id: true, name: true, email: true } } },
   });
 
@@ -166,8 +172,13 @@ export async function validateApiKey(apiKey) {
 }
 
 // Revoke API key
-export async function revokeApiKey(apiKeyId, userId) {
-  const key = await prisma.apiKey.findUnique({ where: { id: Number(apiKeyId) } });
+export async function revokeApiKey(apiKeyId, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'apiKey:revoke', { projectId });
+
+  const key = await prisma.apiKey.findFirst({ where: { id: Number(apiKeyId), projectId: Number(projectId) } });
   if (!key) {
     throw new Error('API key not found');
   }
@@ -189,8 +200,13 @@ export async function revokeApiKey(apiKeyId, userId) {
 }
 
 // Delete API key
-export async function deleteApiKey(apiKeyId, userId) {
-  const key = await prisma.apiKey.findUnique({ where: { id: Number(apiKeyId) } });
+export async function deleteApiKey(apiKeyId, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'apiKey:delete', { projectId });
+
+  const key = await prisma.apiKey.findFirst({ where: { id: Number(apiKeyId), projectId: Number(projectId) } });
   if (!key) {
     throw new Error('API key not found');
   }
@@ -208,10 +224,15 @@ export async function deleteApiKey(apiKeyId, userId) {
 }
 
 // Update API key
-export async function updateApiKey(apiKeyId, data, userId) {
+export async function updateApiKey(apiKeyId, data, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'apiKey:edit', { projectId });
+
   const { name, expiresAt, rateLimit, isActive } = data;
 
-  const key = await prisma.apiKey.findUnique({ where: { id: Number(apiKeyId) } });
+  const key = await prisma.apiKey.findFirst({ where: { id: Number(apiKeyId), projectId: Number(projectId) } });
   if (!key) {
     throw new Error('API key not found');
   }
@@ -252,8 +273,13 @@ export async function updateApiKey(apiKeyId, data, userId) {
 }
 
 // Regenerate API key (return new key)
-export async function regenerateApiKey(apiKeyId, userId) {
-  const key = await prisma.apiKey.findUnique({ where: { id: Number(apiKeyId) } });
+export async function regenerateApiKey(apiKeyId, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'apiKey:regenerate', { projectId });
+
+  const key = await prisma.apiKey.findFirst({ where: { id: Number(apiKeyId), projectId: Number(projectId) } });
   if (!key) {
     throw new Error('API key not found');
   }
@@ -281,9 +307,9 @@ export async function regenerateApiKey(apiKeyId, userId) {
 }
 
 // Get API key usage stats
-export async function getApiKeyStats(apiKeyId) {
-  const key = await prisma.apiKey.findUnique({
-    where: { id: Number(apiKeyId) },
+export async function getApiKeyStats(apiKeyId, projectId) {
+  const key = await prisma.apiKey.findFirst({
+    where: { id: Number(apiKeyId), projectId: Number(projectId) },
   });
 
   if (!key) {

@@ -2,6 +2,7 @@
   "name": "testtrack-pro",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "description": "Full-stack monorepo with React, Fastify, and Prisma",
   "scripts": {
     "dev": "turbo run dev",

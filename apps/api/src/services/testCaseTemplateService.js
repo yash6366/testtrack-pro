@@ -5,6 +5,7 @@
 
 import { getPrismaClient } from '../lib/prisma.js';
 import { logAuditAction } from './auditService.js';
+import { assertPermissionContext } from '../lib/policy.js';
 
 const prisma = getPrismaClient();
 
@@ -12,9 +13,16 @@ const prisma = getPrismaClient();
  * Create a new test case template
  * @param {Object} data - Template data
  * @param {number} userId - Creator user ID
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Created template
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function createTestCaseTemplate(data, userId, auditContext = {}) {
+export async function createTestCaseTemplate(data, userId, auditContext = {}, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+
   const {
     projectId,
     name,
@@ -35,6 +43,8 @@ export async function createTestCaseTemplate(data, userId, auditContext = {}) {
   if (!projectId || !name) {
     throw new Error('ProjectId and name are required');
   }
+
+  assertPermissionContext(permissionContext, 'testPlan:create', { projectId: Number(projectId) });
 
   // Check if template with same name exists in project
   const existing = await prisma.testCaseTemplate.findFirst({
@@ -104,9 +114,16 @@ export async function createTestCaseTemplate(data, userId, auditContext = {}) {
  * @param {number} templateId - Template ID
  * @param {Object} updates - Fields to update
  * @param {number} userId - Editor user ID
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated template
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function updateTestCaseTemplate(templateId, updates, userId, auditContext = {}) {
+export async function updateTestCaseTemplate(templateId, updates, userId, auditContext = {}, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+
   const existing = await prisma.testCaseTemplate.findUnique({
     where: { id: templateId },
     include: { templateSteps: true },
@@ -115,6 +132,8 @@ export async function updateTestCaseTemplate(templateId, updates, userId, auditC
   if (!existing) {
     throw new Error('Template not found');
   }
+
+  assertPermissionContext(permissionContext, 'testPlan:edit', { projectId: existing.projectId });
 
   const {
     name,
@@ -196,9 +215,16 @@ export async function updateTestCaseTemplate(templateId, updates, userId, auditC
  * Delete test case template
  * @param {number} templateId - Template ID
  * @param {number} userId - User deleting
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<boolean>} Success status
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function deleteTestCaseTemplate(templateId, userId, auditContext = {}) {
+export async function deleteTestCaseTemplate(templateId, userId, auditContext = {}, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+
   const template = await prisma.testCaseTemplate.findUnique({
     where: { id: templateId },
   });
@@ -206,6 +232,8 @@ export async function deleteTestCaseTemplate(templateId, userId, auditContext = 
   if (!template) {
     throw new Error('Template not found');
   }
+
+  assertPermissionContext(permissionContext, 'testPlan:delete', { projectId: template.projectId });
 
   await prisma.testCaseTemplate.delete({
     where: { id: templateId },

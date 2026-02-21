@@ -4,6 +4,7 @@
  */
 
 import { createAuthGuards } from '../lib/rbac.js';
+import { requirePermission } from '../lib/policy.js';
 import {
   getDeveloperAssignedBugs,
   updateFixDocumentation,
@@ -48,7 +49,7 @@ export async function developerRoutes(fastify) {
         reply.send(overview);
       } catch (error) {
         console.error('Error fetching developer overview:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -72,7 +73,7 @@ export async function developerRoutes(fastify) {
         reply.send(metrics);
       } catch (error) {
         console.error('Error fetching developer metrics:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -104,7 +105,7 @@ export async function developerRoutes(fastify) {
         reply.send(result);
       } catch (error) {
         console.error('Error fetching assigned bugs:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -137,7 +138,12 @@ export async function developerRoutes(fastify) {
     async (request, reply) => {
       try {
         const { bugId } = request.params;
+        const { projectId } = request.query;
         const userId = request.user.id;
+
+        if (!projectId) {
+          return reply.code(400).send({ error: 'projectId query parameter is required' });
+        }
 
         const bug = await updateFixDocumentation(Number(bugId), request.body, userId);
 
@@ -155,18 +161,25 @@ export async function developerRoutes(fastify) {
    */
   fastify.patch(
     '/api/developer/bugs/:bugId/mark-fixed',
-    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    { preHandler: [requirePermission('bug:status:change')] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
+        const { projectId } = request.query;
         const userId = request.user.id;
+
+        if (!projectId) {
+          return reply.code(400).send({ error: 'projectId query parameter is required' });
+        }
 
         const bug = await changeBugStatus(
           Number(bugId),
           'FIXED',
           userId,
           'DEVELOPER',
-          getClientContext(request)
+          getClientContext(request),
+          projectId,
+          request.permissionContext,
         );
 
         reply.send(bug);
@@ -183,11 +196,16 @@ export async function developerRoutes(fastify) {
    */
   fastify.post(
     '/api/developer/bugs/:bugId/request-retest',
-    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    { preHandler: [requirePermission('bug:verify')] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
+        const { projectId } = request.query;
         const userId = request.user.id;
+
+        if (!projectId) {
+          return reply.code(400).send({ error: 'projectId query parameter is required' });
+        }
 
         const {
           testerId,
@@ -214,6 +232,8 @@ export async function developerRoutes(fastify) {
           userId,
           resolvedTesterId,
           combinedNotes || null,
+          projectId,
+          request.permissionContext,
         );
 
         reply.code(201).send(result);
@@ -230,23 +250,35 @@ export async function developerRoutes(fastify) {
    */
   fastify.post(
     '/api/developer/bugs/:bugId/comments',
-    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    { preHandler: [requirePermission('bug:comment')] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
+        const { projectId } = request.query;
         const { body, isInternal = false } = request.body;
         const userId = request.user.id;
+
+        if (!projectId) {
+          return reply.code(400).send({ error: 'projectId query parameter is required' });
+        }
 
         if (!body) {
           return reply.code(400).send({ error: 'Comment body is required' });
         }
 
-        const comment = await addBugComment(Number(bugId), body, userId, isInternal);
+        const comment = await addBugComment(
+          Number(bugId),
+          body,
+          userId,
+          isInternal,
+          projectId,
+          request.permissionContext,
+        );
 
         reply.code(201).send(comment);
       } catch (error) {
         console.error('Error adding comment:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -256,24 +288,31 @@ export async function developerRoutes(fastify) {
    */
   fastify.patch(
     '/api/developer/bugs/:bugId/start-work',
-    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    { preHandler: [requirePermission('bug:status:change')] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
+        const { projectId } = request.query;
         const userId = request.user.id;
+
+        if (!projectId) {
+          return reply.code(400).send({ error: 'projectId query parameter is required' });
+        }
 
         const bug = await changeBugStatus(
           Number(bugId),
           'IN_PROGRESS',
           userId,
           'DEVELOPER',
-          getClientContext(request)
+          getClientContext(request),
+          projectId,
+          request.permissionContext,
         );
 
         reply.send(bug);
       } catch (error) {
         console.error('Error starting work on bug:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -283,12 +322,17 @@ export async function developerRoutes(fastify) {
    */
   fastify.patch(
     '/api/developer/bugs/:bugId/reject',
-    { preHandler: [requireAuth, requireRoles(['DEVELOPER'])] },
+    { preHandler: [requirePermission('bug:status:change')] },
     async (request, reply) => {
       try {
         const { bugId } = request.params;
+        const { projectId } = request.query;
         const { reason, rejectionReason } = request.body;
         const userId = request.user.id;
+
+        if (!projectId) {
+          return reply.code(400).send({ error: 'projectId query parameter is required' });
+        }
 
         if (!rejectionReason) {
           return reply.code(400).send({
@@ -312,7 +356,9 @@ export async function developerRoutes(fastify) {
           rejectionReason,
           userId,
           'DEVELOPER',
-          getClientContext(request)
+          getClientContext(request),
+          projectId,
+          request.permissionContext,
         );
 
         // Add rejection comment
@@ -321,14 +367,16 @@ export async function developerRoutes(fastify) {
             Number(bugId),
             `Rejected as ${rejectionReason}: ${reason}`,
             userId,
-            false
+            false,
+            projectId,
+            request.permissionContext,
           );
         }
 
         reply.send(bug);
       } catch (error) {
         console.error('Error rejecting bug:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -356,7 +404,7 @@ export async function developerRoutes(fastify) {
         reply.send(testCase);
       } catch (error) {
         console.error('Error fetching test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -384,7 +432,7 @@ export async function developerRoutes(fastify) {
         reply.send(report);
       } catch (error) {
         console.error('Error generating developer report:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -408,7 +456,7 @@ export async function developerRoutes(fastify) {
         reply.send(analytics);
       } catch (error) {
         console.error('Error generating bug analytics:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -441,7 +489,7 @@ export async function developerRoutes(fastify) {
           .send(csvContent);
       } catch (error) {
         console.error('Error exporting bug report:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -471,7 +519,7 @@ export async function developerRoutes(fastify) {
           .send(csvContent);
       } catch (error) {
         console.error('Error exporting performance report:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -503,7 +551,7 @@ export async function developerRoutes(fastify) {
           .send(csvContent);
       } catch (error) {
         console.error('Error exporting bug analytics:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

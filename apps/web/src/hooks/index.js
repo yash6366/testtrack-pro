@@ -1,4 +1,5 @@
 export { useAuth } from './useAuth';
+export { useProject } from './useProject';
 export { useFetch } from './useFetch';
 export { useSocket } from './useSocket';
 export { useTheme } from './useTheme';

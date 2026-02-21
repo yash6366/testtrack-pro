@@ -291,6 +291,7 @@ Update:
 - [API-REFERENCE.md](./API-REFERENCE.md) for new endpoints
 - [DEVELOPMENT.md](./DEVELOPMENT.md) for setup changes
 - Component docstrings for complex UI
+- [FEATURES.md](./FEATURES.md) for user-facing features
 
 Example JSDoc:
 
@@ -310,12 +311,44 @@ export async function createTestCase(projectId, data) {
 }
 ```
 
-### For Bugs
+### For Bug Fixes (v0.6.2 Enhancement)
 
 Include:
 - What was broken
-- Root cause (if known)
+- Root cause analysis (use the root cause categories from bug fix documentation)
 - What was fixed
+- Testing performed to verify the fix
+- Root cause category classification (helps track fix patterns)
+
+When fixing bugs:
+1. Test the fix thoroughly
+2. Document in PR description:
+   - Problem description
+   - Root cause (use categories: DESIGN_DEFECT, IMPLEMENTATION_ERROR, etc.)
+   - Solution employed
+   - Verification steps
+3. Link to any related bugs being fixed
+4. Reviewers will verify the fix
+
+Example PR description for a bug fix:
+
+```markdown
+## Bug: Authentication timeout on long-running requests
+
+### Root Cause
+**Category:** IMPLEMENTATION_ERROR
+JWT token expiration logic wasn't accounting for long-running authenticated requests, causing premature timeout.
+
+### Solution
+Extended JWT token validity check to include grace period for active connections.
+
+### Testing
+- Tested with 30-minute background job ✅
+- Tested with normal login flow ✅
+- Tested refresh token flow ✅
+
+Closes #456
+```
 
 ## Performance Considerations
 

@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@/lib/apiClient';
 import { Edit2, Save, X } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -99,6 +100,10 @@ export default function ProfilePage() {
       headerSubtitle="View and manage your profile information"
       onLogout={handleLogout}
     >
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
+
       {message.text && (
         <div
           className={`tt-card p-4 mb-6 ${

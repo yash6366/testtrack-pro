@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { logError } from '../lib/errorLogger';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function TestSuiteDetailPage() {
   const { suiteId } = useParams();
@@ -123,16 +125,21 @@ export default function TestSuiteDetailPage() {
 
   return (
     <div className="p-6">
+      <div className="mb-4 flex flex-col gap-3">
+        <BackButton label="Back to Test Suites" fallback="/test-suites" />
+        <Breadcrumb
+          crumbs={[
+            { label: 'Dashboard', path: '/dashboard' },
+            { label: 'Test Suites', path: '/test-suites' },
+            { label: suite?.name || 'Suite', path: null },
+          ]}
+        />
+      </div>
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/test-suites')}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              ← Back
-            </button>
             <h1 className="text-2xl font-bold">{suite.name}</h1>
             <span className="px-3 py-1 text-sm rounded bg-blue-100 text-blue-800">
               {suiteType}

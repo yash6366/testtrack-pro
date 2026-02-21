@@ -1,20 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks';
+import { useProject } from '@/hooks';
 import { apiClient } from '@/lib/apiClient';
 import DashboardLayout from '@/components/DashboardLayout';
 import MetricsGrid from '@/components/MetricsGrid';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingState from '@/components/common/LoadingState';
+import BackButton from '@/components/ui/BackButton';
 import {
   ExecutionTrendChart,
   BugTrendChart,
   BugDistributionChart,
   TeamComparisonChart,
 } from '@/components/charts';
+import { FolderKanban } from 'lucide-react';
 
 export default function AnalyticsDashboard() {
-  const { projectId } = useParams();
+  const { projectId: routeProjectId } = useParams();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { selectedProjectId, setActiveProjectId, loading: projectLoading } = useProject();
+  const projectId = routeProjectId || selectedProjectId;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,8 +43,13 @@ export default function AnalyticsDashboard() {
   ]);
 
   useEffect(() => {
+    if (routeProjectId) {
+      setActiveProjectId(routeProjectId);
+    }
+  }, [routeProjectId, setActiveProjectId]);
+
+  useEffect(() => {
     if (!projectId) {
-      setError('Project ID is required');
       setLoading(false);
       return;
     }
@@ -105,6 +117,43 @@ export default function AnalyticsDashboard() {
     navigate('/login');
   };
 
+  if (projectLoading) {
+    return (
+      <DashboardLayout
+        user={user}
+        dashboardLabel="Analytics Dashboard"
+        headerTitle="Loading analytics..."
+        onLogout={handleLogout}
+      >
+        <LoadingState className="py-12" message="Loading projects..." />
+      </DashboardLayout>
+    );
+  }
+
+  if (!projectId) {
+    return (
+      <DashboardLayout
+        user={user}
+        dashboardLabel="Analytics Dashboard"
+        headerTitle="Project Analytics & Insights"
+        onLogout={handleLogout}
+      >
+        <div className="max-w-3xl">
+          <div className="mb-4">
+            <BackButton label="Back to Dashboard" fallback="/dashboard" />
+          </div>
+          <EmptyState
+            icon={FolderKanban}
+            title="No project selected"
+            description="Select or create a project to view analytics."
+            actionLabel="Select Project"
+            onAction={() => navigate('/projects')}
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (loading) {
     return (
       <DashboardLayout
@@ -113,9 +162,7 @@ export default function AnalyticsDashboard() {
         headerTitle="Loading analytics..."
         onLogout={handleLogout}
       >
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
+        <LoadingState className="py-12" message="Loading analytics..." />
       </DashboardLayout>
     );
   }
@@ -141,6 +188,10 @@ export default function AnalyticsDashboard() {
       headerSubtitle="Comprehensive testing metrics and performance analysis"
       onLogout={handleLogout}
     >
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
+
       <MetricsGrid metrics={metrics} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

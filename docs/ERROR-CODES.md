@@ -451,13 +451,14 @@ All API errors follow a consistent JSON structure:
     "message": "Failed to send email",
     "statusCode": 500,
     "details": {
-      "service": "SMTP",
+      "service": "Resend",
       "recipient": "user@example.com"
     }
   }
 }
 ```
 **Cause**: Email service unavailable or failed  
+**Solution**: Verify Resend API key and check service status
 **Solution**: User can request email resend later
 
 #### EXT_002 - File Upload Failed
@@ -580,6 +581,109 @@ All API errors follow a consistent JSON structure:
 ```
 **Cause**: File contains malicious content  
 **Solution**: Upload different file
+
+### Fix Documentation Errors (FIX_*) — NEW in v0.6.2
+
+#### FIX_001 - Invalid Root Cause Category
+```json
+{
+  "error": {
+    "code": "FIX_001",
+    "message": "Invalid root cause category",
+    "statusCode": 400,
+    "details": {
+      "provided": "UNKNOWN_CAUSE",
+      "allowed": ["DESIGN_DEFECT", "IMPLEMENTATION_ERROR", "CONFIGURATION_ISSUE", "DEPENDENCY_BUG", "ENVIRONMENT_ISSUE", "ENVIRONMENTAL_CHANGE", "DOCUMENTATION_ERROR"]
+    }
+  }
+}
+```
+**Cause**: Root cause category not in allowed list  
+**Solution**: Use one of the allowed root cause categories
+
+#### FIX_002 - Invalid Git Information
+```json
+{
+  "error": {
+    "code": "FIX_002",
+    "message": "Invalid git information provided",
+    "statusCode": 400,
+    "details": {
+      "field": "gitCommitHash",
+      "reason": "Commit hash must be 40 characters"
+    }
+  }
+}
+```
+**Cause**: Git commit hash, branch, or PR URL format is invalid  
+**Solution**: Provide valid git information (40-char hex commit hash, valid branch name, valid GitHub PR URL)
+
+#### FIX_003 - Cannot Document Fix for Closed Bug
+```json
+{
+  "error": {
+    "code": "FIX_003",
+    "message": "Cannot document fix for a closed or non-existent bug",
+    "statusCode": 422,
+    "details": {
+      "bugId": 42,
+      "bugStatus": "CLOSED"
+    }
+  }
+}
+```
+**Cause**: Attempting to document fix for bug that's already closed or doesn't exist  
+**Solution**: Bug must be in OPEN, REOPENED, or IN_PROGRESS status
+
+#### FIX_004 - Fix Documentation Already Exists
+```json
+{
+  "error": {
+    "code": "FIX_004",
+    "message": "Fix documentation already exists for this bug",
+    "statusCode": 409,
+    "details": {
+      "bugId": 42,
+      "existingFixDocumentationId": 128
+    }
+  }
+}
+```
+**Cause**: Bug already has fix documentation; only one fix doc per bug allowed  
+**Solution**: Update existing fix documentation instead
+
+#### FIX_005 - Missing Required Fix Documentation Fields
+```json
+{
+  "error": {
+    "code": "FIX_005",
+    "message": "Missing required fix documentation fields",
+    "statusCode": 400,
+    "details": {
+      "missingFields": ["fixStrategy", "rootCauseAnalysis", "rootCauseCategory"]
+    }
+  }
+}
+```
+**Cause**: One or more required fields missing from fix documentation  
+**Solution**: Provide all required fields: fixStrategy, rootCauseAnalysis, rootCauseCategory
+
+#### FIX_006 - Developer Cannot Verify Own Fix
+```json
+{
+  "error": {
+    "code": "FIX_006",
+    "message": "Developers cannot verify their own bug fixes",
+    "statusCode": 422,
+    "details": {
+      "bugId": 42,
+      "developerId": 5
+    }
+  }
+}
+```
+**Cause**: Only Testers and Admins can verify fixes; Developers who documented the fix cannot verify  
+**Solution**: Have a different user (Tester/Admin) verify the fix
 
 ## Error Handling Best Practices
 

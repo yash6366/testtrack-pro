@@ -3,10 +3,8 @@
  * Provides endpoints for monitoring service health and readiness
  */
 
-import { getPrismaClient } from '../lib/prisma.js';
+import { systemQueryRaw } from '../lib/prisma.js';
 import { getRedisClient } from '../lib/socket.js';
-
-const prisma = getPrismaClient();
 
 /**
  * Health check routes
@@ -67,7 +65,7 @@ export async function healthRoutes(fastify) {
 
     // Check database connection
     try {
-      await prisma.$queryRaw`SELECT 1`;
+      await systemQueryRaw`SELECT 1`;
       checks.database = true;
     } catch (error) {
       fastify.log.error('Database health check failed:', error);
@@ -152,7 +150,7 @@ export async function healthRoutes(fastify) {
     // Database check with latency
     try {
       const dbStart = Date.now();
-      await prisma.$queryRaw`SELECT 1`;
+      await systemQueryRaw`SELECT 1`;
       checks.database = {
         healthy: true,
         latency: Date.now() - dbStart,

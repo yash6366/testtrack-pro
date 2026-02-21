@@ -1,15 +1,23 @@
 /**
  * TEST PLAN SERVICE
  * CRUD operations for test plans and execution management
+ * Includes query caching for frequently accessed test plans
  */
 
 import { getPrismaClient } from '../lib/prisma.js';
 import { logAuditAction } from './auditService.js';
+import { assertPermissionContext } from '../lib/policy.js';
+import { getCachedValue, setCachedValue, invalidateCache } from '../lib/cacheService.js';
 
 const prisma = getPrismaClient();
 
 // Create test plan
-export async function createTestPlan(data, userId) {
+export async function createTestPlan(data, userId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testPlan:create', { projectId: data.projectId });
+
   const { projectId, name, description, scope, startDate, endDate, plannedDuration, plannerNotes, testCaseIds = [] } = data;
 
   if (!projectId || !name) throw new Error('ProjectId and name are required');
@@ -81,10 +89,17 @@ export async function getProjectTestPlans(projectId, filters = {}, pagination = 
   };
 }
 
-// Get test plan by ID
-export async function getTestPlanById(testPlanId) {
-  const testPlan = await prisma.testPlan.findUnique({
-    where: { id: Number(testPlanId) },
+// Get test plan by ID (with caching)
+export async function getTestPlanById(testPlanId, projectId) {
+  // Check cache first
+  const cacheKey = `${testPlanId}:${projectId}`;
+  const cached = getCachedValue('testPlan', cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const testPlan = await prisma.testPlan.findFirst({
+    where: { id: Number(testPlanId), projectId: Number(projectId) },
     include: {
       planner: { select: { id: true, name: true, email: true } },
       createdRuns: {
@@ -100,21 +115,36 @@ export async function getTestPlanById(testPlanId) {
   // Fetch test case details
   const testCases = testPlan.testCaseIds?.length > 0
     ? await prisma.testCase.findMany({
-        where: { id: { in: testPlan.testCaseIds.map(id => Number(id)) } },
+        where: {
+          id: { in: testPlan.testCaseIds.map(id => Number(id)) },
+          projectId: Number(projectId),
+        },
         select: { id: true, name: true, status: true, priority: true },
       })
     : [];
 
-  return {
+  const result = {
     ...testPlan,
     totalTestCases: testPlan.testCaseIds?.length || 0,
     testCases,
   };
+
+  // Cache the result
+  setCachedValue('testPlan', cacheKey, result);
+
+  return result;
 }
 
 // Update test plan
-export async function updateTestPlan(testPlanId, data, userId) {
-  const testPlan = await prisma.testPlan.findUnique({ where: { id: Number(testPlanId) } });
+export async function updateTestPlan(testPlanId, data, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testPlan:edit', { projectId });
+
+  const testPlan = await prisma.testPlan.findFirst({
+    where: { id: Number(testPlanId), projectId: Number(projectId) },
+  });
   if (!testPlan) throw new Error('Test plan not found');
 
   const { name, description, scope, status, startDate, endDate, plannedDuration, plannerNotes, testCaseIds } = data;
@@ -131,6 +161,10 @@ export async function updateTestPlan(testPlanId, data, userId) {
   if (description !== undefined) updateData.description = description;
   if (scope !== undefined) updateData.scope = scope;
   if (status) updateData.status = status;
+  // Invalidate cache after update
+  const cacheKey = `${testPlanId}:${projectId}`;
+  invalidateCache('testPlan', cacheKey);
+
   if (startDate) updateData.startDate = new Date(startDate);
   if (endDate) updateData.endDate = new Date(endDate);
   if (plannedDuration) updateData.plannedDuration = plannedDuration;
@@ -154,11 +188,21 @@ export async function updateTestPlan(testPlanId, data, userId) {
 }
 
 // Delete test plan
-export async function deleteTestPlan(testPlanId, userId) {
-  const testPlan = await prisma.testPlan.findUnique({ where: { id: Number(testPlanId) } });
+export async function deleteTestPlan(testPlanId, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testPlan:delete', { projectId });
+  const testPlan = await prisma.testPlan.findFirst({
+    where: { id: Number(testPlanId), projectId: Number(projectId) },
+  });
   if (!testPlan) throw new Error('Test plan not found');
 
   await prisma.testPlan.delete({ where: { id: Number(testPlanId) } });
+
+  // Invalidate cache after deletion
+  const cacheKey = `${testPlanId}:${projectId}`;
+  invalidateCache('testPlan', cacheKey);
 
   await logAuditAction(userId, 'TESTPLAN_DELETED', {
     resourceType: 'TESTPLAN',
@@ -171,8 +215,15 @@ export async function deleteTestPlan(testPlanId, userId) {
 }
 
 // Execute test plan (create test run)
-export async function executeTestPlan(testPlanId, executionData, userId) {
-  const testPlan = await prisma.testPlan.findUnique({ where: { id: Number(testPlanId) } });
+export async function executeTestPlan(testPlanId, executionData, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testPlan:execute', { projectId });
+
+  const testPlan = await prisma.testPlan.findFirst({
+    where: { id: Number(testPlanId), projectId: Number(projectId) },
+  });
   if (!testPlan) throw new Error('Test plan not found');
 
   const { name, environment, buildVersion } = executionData;
@@ -234,8 +285,15 @@ export async function executeTestPlan(testPlanId, executionData, userId) {
 }
 
 // Clone test plan
-export async function cloneTestPlan(testPlanId, userId) {
-  const testPlan = await prisma.testPlan.findUnique({ where: { id: Number(testPlanId) } });
+export async function cloneTestPlan(testPlanId, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'testPlan:clone', { projectId });
+
+  const testPlan = await prisma.testPlan.findFirst({
+    where: { id: Number(testPlanId), projectId: Number(projectId) },
+  });
   if (!testPlan) throw new Error('Test plan not found');
 
   const clonedPlan = await prisma.testPlan.create({
@@ -263,9 +321,9 @@ export async function cloneTestPlan(testPlanId, userId) {
 }
 
 // Get test plan runs
-export async function getTestPlanRuns(testPlanId) {
+export async function getTestPlanRuns(testPlanId, projectId) {
   const runs = await prisma.testRun.findMany({
-    where: { testPlanId: Number(testPlanId) },
+    where: { testPlanId: Number(testPlanId), projectId: Number(projectId) },
     include: {
       creator: { select: { id: true, name: true, email: true } },
       executor: { select: { id: true, name: true, email: true } },

@@ -22,7 +22,7 @@ This is a high-performance Node.js backend that handles:
 - **Real-time**: Socket.IO
 - **Authentication**: JWT + bcrypt
 - **File Storage**: Cloudinary
-- **Email**: Nodemailer
+- **Email**: Resend
 - **Testing**: Jest
 - **Monitoring**: Sentry
 
@@ -90,12 +90,11 @@ REDIS_URL="redis://localhost:6379"
 # UPSTASH_REDIS_REST_URL="https://your-redis.upstash.io"
 # UPSTASH_REDIS_REST_TOKEN="your-token"
 
-# Email Configuration
-SMTP_HOST="smtp.ethereal.email"
-SMTP_PORT=587
-SMTP_USER="your-user@ethereal.email"
-SMTP_PASS="your-password"
-EMAIL_FROM="TestTrack Pro <noreply@testtrack.com>"
+# Email Configuration (Resend)
+# Get your API key from https://resend.com/api-keys
+RESEND_API_KEY="your-resend-api-key"
+RESEND_FROM_EMAIL="noreply@yourdomain.com"
+# For testing, use: onboarding@resend.dev
 
 # Cloudinary (File Storage)
 CLOUDINARY_CLOUD_NAME=""
@@ -206,11 +205,15 @@ See [docs/API-REFERENCE.md](../../docs/API-REFERENCE.md) for complete endpoint d
 - `POST /api/bugs` - Create bug
 - `PUT /api/bugs/:id` - Update bug
 - `PATCH /api/bugs/:id/status` - Update bug status
+- `PATCH /api/bugs/:id/fix-documentation` - Document bug fix (v0.6.2)
 
 #### Analytics
 - `GET /api/analytics/overview` - Dashboard metrics
-- `GET /api/analytics/test-execution-trends` - Execution trends
-- `GET /api/analytics/bug-trends` - Bug trends
+- `GET /api/analytics/test-execution-trends` - Execution trends (8-week view)
+- `GET /api/analytics/bug-trends` - Bug trends and velocity
+- `GET /api/analytics/flaky-tests` - Identify flaky tests (v0.6.2)
+- `GET /api/analytics/execution-speed` - Performance analysis (v0.6.2)
+- `GET /api/analytics/developers` - Developer productivity metrics (v0.6.2)
 
 ## Code Structure
 

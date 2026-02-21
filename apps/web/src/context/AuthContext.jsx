@@ -214,6 +214,15 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  const updateUser = useCallback((patch) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const nextUser = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(nextUser));
+      return nextUser;
+    });
+  }, []);
+
   const isAuthenticated = !!token && !!user;
 
   const value = {
@@ -226,6 +235,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     logoutAll,
+    updateUser,
     setError,
   };
 

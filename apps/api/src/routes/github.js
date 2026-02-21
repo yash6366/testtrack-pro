@@ -64,7 +64,7 @@ async function githubRoutes(fastify) {
         });
       } catch (error) {
         logError('Error generating OAuth URL', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -78,7 +78,7 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Handle GitHub OAuth callback' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         
         const {
           code,
@@ -103,7 +103,7 @@ async function githubRoutes(fastify) {
         const githubUser = await getGitHubUser(tokenResponse.accessToken);
 
         // Verify user has admin access to project
-        await requireProjectRole(request, 'PROJECT_MANAGER', Number(projectId));
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         // Create integration
         const integration = await createGitHubIntegration(
@@ -125,7 +125,7 @@ async function githubRoutes(fastify) {
         });
       } catch (error) {
         logError('Error in OAuth callback', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -139,9 +139,9 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Create GitHub integration' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
-        await requireProjectRole(request, 'PROJECT_MANAGER', Number(projectId));
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const {
           repoOwner,
@@ -198,7 +198,7 @@ async function githubRoutes(fastify) {
         reply.code(201).send(integration);
       } catch (error) {
         logError('Error creating GitHub integration', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -212,7 +212,7 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Get GitHub integration' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
 
         const integration = await getProjectGitHubIntegration(Number(projectId));
@@ -225,7 +225,7 @@ async function githubRoutes(fastify) {
           return reply.code(404).send({ error: 'GitHub integration not found' });
         }
         logError('Error getting GitHub integration', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -239,9 +239,9 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Update GitHub integration' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
-        await requireProjectRole(request, 'PROJECT_MANAGER', Number(projectId));
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const integration = await getProjectGitHubIntegration(Number(projectId));
         const updated = await updateGitHubIntegration(
@@ -254,7 +254,7 @@ async function githubRoutes(fastify) {
         reply.send(safe);
       } catch (error) {
         logError('Error updating GitHub integration', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -268,15 +268,15 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Delete GitHub integration' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
-        await requireProjectRole(request, 'PROJECT_MANAGER', Number(projectId));
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         await deleteGitHubIntegration(Number(projectId), request.user.id);
         reply.code(204).send();
       } catch (error) {
         logError('Error deleting GitHub integration', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -290,7 +290,7 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Get linked commits' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
         const { limit = 50 } = request.query;
 
@@ -300,7 +300,7 @@ async function githubRoutes(fastify) {
         reply.send(commits);
       } catch (error) {
         logError('Error fetching commits', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -359,7 +359,7 @@ async function githubRoutes(fastify) {
         reply.code(200).send(result);
       } catch (error) {
         logError('Error handling webhook', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -373,9 +373,9 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Sync GitHub data' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
-        await requireProjectRole(request, 'PROJECT_MANAGER', Number(projectId));
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const integration = await getProjectGitHubIntegration(Number(projectId));
 
@@ -389,7 +389,7 @@ async function githubRoutes(fastify) {
         });
       } catch (error) {
         logError('Error syncing GitHub data', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -403,16 +403,16 @@ async function githubRoutes(fastify) {
     { schema: { tags: ['github'], summary: 'Deactivate integration' } },
     async (request, reply) => {
       try {
-        await requireAuth(request);
+        await requireAuth(request, reply);
         const { projectId } = request.params;
-        await requireProjectRole(request, 'PROJECT_MANAGER', Number(projectId));
+        await requireProjectRole(request, reply, 'PROJECT_MANAGER');
 
         const deactivated = await deactivateGitHubIntegration(Number(projectId));
         const { accessToken, refreshToken, webhookSecret, ...safe } = deactivated;
         reply.send(safe);
       } catch (error) {
         logError('Error deactivating integration', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     }
   );

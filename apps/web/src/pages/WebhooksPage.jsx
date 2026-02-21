@@ -4,6 +4,7 @@ import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
 import { logError } from '../lib/errorLogger';
+import BackButton from '@/components/ui/BackButton';
 
 export default function WebhooksPage() {
   const navigate = useNavigate();
@@ -230,6 +231,8 @@ export default function WebhooksPage() {
       headerSubtitle="Manage webhook integrations for your project"
     >
       <div className="p-6 space-y-6">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+
         {/* Messages */}
         {error && (
           <div className="bg-red-50 dark:bg-red-900 border border-red-200 text-red-800 dark:text-red-200 px-4 py-3 rounded">

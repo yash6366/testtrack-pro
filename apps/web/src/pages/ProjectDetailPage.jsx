@@ -9,6 +9,8 @@ import {
   PlayCircle, 
   Bug,
 } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams();
@@ -91,12 +93,7 @@ export default function ProjectDetailPage() {
       >
         <div className="tt-card p-6">
           <div className="text-[var(--danger)] mb-4">{error || 'Project not found'}</div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="tt-btn-primary"
-          >
-            Back to Dashboard
-          </button>
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
         </div>
       </DashboardLayout>
     );
@@ -137,6 +134,15 @@ export default function ProjectDetailPage() {
       headerSubtitle={project.description || 'Project overview and management'}
       onLogout={handleLogout}
     >
+      <div className="mb-4 flex flex-col gap-3">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        <Breadcrumb
+          crumbs={[
+            { label: 'Dashboard', path: '/dashboard' },
+            { label: project?.name || 'Project', path: null },
+          ]}
+        />
+      </div>
       {/* Project Information */}
       <div className="tt-card p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Project Information</h2>

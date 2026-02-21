@@ -10,7 +10,12 @@ const createScheduledReportSchema = {
   tags: ['scheduled-reports'],
   summary: 'Create a new scheduled report',
   description: 'Create a scheduled report with defined frequency and recipients',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['name', 'frequency', 'recipientEmails'],
@@ -60,7 +65,12 @@ const getScheduledReportsSchema = {
   tags: ['scheduled-reports'],
   summary: 'Get all scheduled reports',
   description: 'Retrieve paginated list of scheduled reports for a project',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   querystring: {
     type: 'object',
     properties: {
@@ -87,8 +97,11 @@ const getScheduledReportSchema = {
   summary: 'Get a specific scheduled report',
   description: 'Retrieve detailed information about a scheduled report including delivery history',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    reportId: { type: 'string', description: 'Report ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      reportId: { type: 'string', description: 'Report ID' },
+    },
   },
   response: {
     200: {
@@ -105,8 +118,11 @@ const updateScheduledReportSchema = {
   summary: 'Update a scheduled report',
   description: 'Update scheduled report settings and schedule',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    reportId: { type: 'string', description: 'Report ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      reportId: { type: 'string', description: 'Report ID' },
+    },
   },
   body: {
     type: 'object',
@@ -145,8 +161,11 @@ const deleteScheduledReportSchema = {
   summary: 'Delete a scheduled report',
   description: 'Delete a scheduled report and its delivery history',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    reportId: { type: 'string', description: 'Report ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      reportId: { type: 'string', description: 'Report ID' },
+    },
   },
   response: {
     200: {
@@ -185,7 +204,7 @@ export async function registerScheduledReportsRoutes(fastify) {
         return reply.code(201).send(report);
       } catch (error) {
         fastify.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply.code(500).send({ error: error.message });
       }
     }
   );
@@ -210,7 +229,7 @@ export async function registerScheduledReportsRoutes(fastify) {
         return reply.send(result);
       } catch (error) {
         fastify.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply.code(500).send({ error: error.message });
       }
     }
   );

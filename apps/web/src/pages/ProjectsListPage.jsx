@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@/lib/apiClient';
 import { FolderKanban, Plus, Search, ChevronRight } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function ProjectsListPage() {
   const navigate = useNavigate();
@@ -73,6 +74,10 @@ export default function ProjectsListPage() {
       headerSubtitle="View and manage your projects"
       onLogout={handleLogout}
     >
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
+
       {/* Search and Actions */}
       <div className="tt-card p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">

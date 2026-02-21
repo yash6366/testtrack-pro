@@ -2,14 +2,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiClient } from '../lib/apiClient';
+import { useProject } from '../hooks/useProject';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingState from '@/components/common/LoadingState';
+import { FolderKanban } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 export default function ReportsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const {
+    projects,
+    selectedProject,
+    selectedProjectId,
+    setActiveProjectId,
+    loading: projectLoading,
+  } = useProject();
   
   const [testRuns, setTestRuns] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
   const [selectedRun, setSelectedRun] = useState(null);
   const [report, setReport] = useState(null);
   const [performanceReport, setPerformanceReport] = useState(null);
@@ -19,7 +29,7 @@ export default function ReportsPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('execution'); // 'execution' or 'performance'
 
-  const resolveProjectId = () => selectedProject?.id || localStorage.getItem('selectedProjectId');
+  const resolveProjectId = () => selectedProject?.id || selectedProjectId;
 
   const handleCreateTestRun = () => {
     const projectId = resolveProjectId();
@@ -31,59 +41,18 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    loadProjects();
     loadPerformanceReport();
   }, []);
 
   useEffect(() => {
     if (selectedProject) {
       loadTestRuns(selectedProject);
+      return;
     }
-  }, [selectedProject]);
-
-  const loadProjects = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      const savedProjectId = localStorage.getItem('selectedProjectId');
-
-      if (user?.role === 'ADMIN') {
-        try {
-          const response = await apiClient.get('/api/admin/projects');
-          if (response.projects && response.projects.length > 0) {
-            setProjects(response.projects);
-
-            if (savedProjectId) {
-              const saved = response.projects.find(p => p.id === Number(savedProjectId));
-              if (saved) {
-                setSelectedProject(saved);
-                return;
-              }
-            }
-
-            setSelectedProject(response.projects[0]);
-            return;
-          }
-
-          setError('No projects available. Please create a project first.');
-          setLoading(false);
-          return;
-        } catch (projectErr) {
-          // Fall through to localStorage fallback
-        }
-      }
-
-      if (savedProjectId) {
-        setSelectedProject({ id: Number(savedProjectId) });
-      } else {
-        setError('No project selected. Please select a project from the dashboard.');
-        setLoading(false);
-      }
-    } finally {
-      if (loading) setLoading(false);
+    if (selectedProjectId) {
+      loadTestRuns({ id: selectedProjectId });
     }
-  };
+  }, [selectedProject, selectedProjectId]);
 
   const loadTestRuns = async (project) => {
     try {
@@ -95,7 +64,6 @@ export default function ReportsPage() {
 
       const projectId = project?.id;
       if (!projectId) {
-        setError('No project selected');
         return;
       }
 
@@ -202,8 +170,16 @@ export default function ReportsPage() {
     }
   };
 
+  if (projectLoading) {
+    return <LoadingState className="min-h-screen" message="Loading projects..." />;
+  }
+
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
+
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -221,13 +197,12 @@ export default function ReportsPage() {
               Select Project
             </label>
             <select
-              value={selectedProject?.id || ''}
+              value={selectedProject?.id || selectedProjectId || ''}
               onChange={(e) => {
                 const projectId = Number(e.target.value);
                 const project = projects.find(p => p.id === projectId);
                 if (project) {
-                  setSelectedProject(project);
-                  localStorage.setItem('selectedProjectId', projectId.toString());
+                  setActiveProjectId(projectId);
                 }
               }}
               className="w-full max-w-sm px-4 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -252,7 +227,7 @@ export default function ReportsPage() {
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600'
               }`}
-              disabled={!selectedProject && activeTab === 'execution'}
+              disabled={!selectedProjectId && activeTab === 'execution'}
             >
               Test Execution Reports
             </button>
@@ -273,11 +248,6 @@ export default function ReportsPage() {
       {error && (
         <div className="mb-6 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 px-4 py-3 rounded">
           <p className="font-medium">{error}</p>
-          {error.includes('No project selected') && (
-            <p className="text-sm mt-2">
-              Please go to the <button onClick={() => navigate('/dashboard')} className="underline font-medium hover:text-blue-600">dashboard</button> to select a project first.
-            </p>
-          )}
           {error.includes('No test runs') && (
             <p className="text-sm mt-2">
               Execute a test to generate reports. Go to <button onClick={handleCreateTestRun} className="underline font-medium hover:text-blue-600">Create Test Run</button>.
@@ -287,15 +257,20 @@ export default function ReportsPage() {
       )}
 
       {/* No Project Selected Alert */}
-      {!selectedProject && !error && (
-        <div className="mb-6 bg-amber-50 dark:bg-amber-900 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-4 py-3 rounded">
-          <p className="font-medium">📋 Select a Project</p>
-          <p className="text-sm mt-2">Please select a project from the dropdown above to view reports and analytics.</p>
+      {!selectedProjectId && !error && (
+        <div className="mb-6">
+          <EmptyState
+            icon={FolderKanban}
+            title="No project selected"
+            description="Select or create a project to view reports and analytics."
+            actionLabel="Select Project"
+            onAction={() => navigate('/projects')}
+          />
         </div>
       )}
 
       {/* Execution Reports Tab */}
-      {activeTab === 'execution' && !selectedProject && (
+      {activeTab === 'execution' && !selectedProjectId && (
         <div className="bg-white dark:bg-gray-900 rounded shadow p-12 text-center">
           <div className="text-6xl mb-4">📊</div>
           <h3 className="text-xl font-semibold mb-2">Select a Project</h3>
@@ -306,7 +281,7 @@ export default function ReportsPage() {
       )}
 
       {/* Execution Reports Tab */}
-      {activeTab === 'execution' && selectedProject && (
+      {activeTab === 'execution' && selectedProjectId && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Test Runs List */}
           <div className="bg-white dark:bg-gray-900 rounded shadow">

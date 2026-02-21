@@ -14,7 +14,12 @@ Think of it as a mini version of tools like **TestRail + Jira** with modern tech
 - **📋 Test Case Management**: Create, organize, and review test cases with version control
 - **🚀 Test Execution**: Execute test runs with real-time status tracking and live updates
 - **🐛 Defect Tracking**: Report, assign, and track bugs with full lifecycle management
+- **� Bug Fix Documentation** *(NEW v0.6.2)*: Developers document fixes with root cause analysis and git traceability
 - **📊 Analytics Dashboard**: Monitor QA health with comprehensive metrics and trends
+  - **Flaky Test Detection** *(NEW v0.6.2)*: Identify unreliable tests with inconsistent results
+  - **Developer Analytics** *(NEW v0.6.2)*: Track developer fix patterns and productivity metrics
+  - **Execution Trends**: 8-week pass rate and performance analysis
+  - **Bug Velocity**: Monitor bug resolution rates and trends
 - **💬 Real-time Communication**: Collaborate via comments and live notifications
 - **👥 RBAC**: Role-based access control (Admin, Developer, Tester, Guest)
 - **🔐 Enterprise Security**: JWT auth, encrypted data, RBAC, audit logging
@@ -22,7 +27,37 @@ Think of it as a mini version of tools like **TestRail + Jira** with modern tech
 - **⚡ High Performance**: Sub-second API responses, Smart caching with Redis
 - **🔄 Real-time Updates**: Socket.IO for live test execution and notifications
 
-## 📁 Project Structure
+## 🎉 What's New in v0.6.2
+
+TestTrack Pro v0.6.2 introduces major enhancements for developer productivity and deeper quality insights:
+
+### Bug Fix Documentation
+- **Document Your Fixes**: Developers can now document how they fixed bugs with detailed metadata
+- **Root Cause Analysis**: Classify bugs by root cause (Design Defect, Implementation Error, Config Issue, etc.)
+- **Git Traceability**: Link fixes to commits, branches, and pull requests for full code traceability
+- **Version Tracking**: Track fix hours and which version the fix was released in
+- **Institutional Knowledge**: Build a knowledge base of common bug types and fix patterns
+
+### Advanced Analytics
+- **Flaky Test Detection**: Automatically identify tests with inconsistent results (marked as "flaky")
+  - Calculates flake rates based on historical execution data
+  - Helps prioritize test maintenance efforts
+  - Supports configurable flake rate thresholds
+- **Developer Analytics Dashboard**: Track developer productivity and fix patterns
+  - Bugs fixed per week
+  - Average fix time per developer
+  - Root cause distribution for each developer
+  - Identify which types of bugs take longest to fix
+- **Execution Trends**: 8-week view of test pass rates and execution performance
+- **Bug Velocity Tracking**: Monitor how quickly bugs are being fixed
+
+### Developer Enhancements
+- **Enhanced Developer Role**: Developers can now document fixes while maintaining security controls
+- **Fix Verification Workflow**: Separation of duties - developers fix, testers verify
+- **Performance Insights**: See your fix metrics and improvement areas
+- **API Improvements**: New endpoints for all analytics features
+
+---
 
 ```
 testtrack-pro/
@@ -124,7 +159,7 @@ For production deployment options (Docker, VPS, Cloud platforms), refer to the d
 
 ## ✅ Production Readiness
 
-TestTrack Pro v0.6.2 includes comprehensive production features:
+TestTrack Pro v1 includes comprehensive production features:
 
 ### Testing & Quality
 - ✅ **70%+ Test Coverage**: 5+ test suites with unit, integration, and component tests
@@ -208,7 +243,7 @@ pnpm --filter api start    # Production
 - **Zod** - Schema validation
 - **Sentry** - Error tracking & monitoring
 - **Cloudinary** - Image/file storage
-- **Nodemailer** - Email service
+- **Resend** - Email service
 
 ### Production Ready Features
 - **Monitoring**: Sentry.io integration for error tracking
@@ -368,12 +403,55 @@ Complete documentation for users, developers, and operators:
 | `pnpm lint:fix` | Lint and fix code automatically |
 | `pnpm clean` | Clean artifacts and node_modules |
 
-## 🚢 Deployment
+## � Deployment
+
+### Environment Setup
+
+Before deploying, ensure all required environment variables are configured:
+
+**Backend (.env):**
+```env
+# Core
+NODE_ENV=production
+PORT=3001
+FRONTEND_URL=https://yourdomain.com
+
+# Database
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+
+# Authentication
+JWT_SECRET=your-secure-random-secret-here
+JWT_EXPIRES_IN=1h
+REFRESH_TOKEN_SECRET=your-refresh-secret-here
+REFRESH_TOKEN_EXPIRES_IN=7d
+
+# Cache
+REDIS_URL=redis://user:password@host:6379
+
+# Services
+RESEND_API_KEY=your-resend-key
+RESEND_FROM_EMAIL=noreply@yourdomain.com
+
+# Monitoring
+SENTRY_DSN=your-sentry-dsn
+```
+
+**Frontend (.env):**
+```env
+VITE_API_URL=https://api.yourdomain.com
+VITE_SOCKET_URL=https://yourdomain.com
+```
+
+### Deployment Options
 
 For production deployment, refer to your hosting provider's documentation:
-- **Docker**: Use `docker-compose.prod.yml` (if available)
-- **Cloud Platforms**: Vercel, Railway, Render, AWS, Azure, GCP
-- **VPS**: Ubuntu/Debian with Nginx and PM2
+- **Docker**: Use `Dockerfile` in each app (build from root with `docker build -f apps/api/Dockerfile .`)
+- **Cloud Platforms**: 
+  - **Vercel/Netlify**: Frontend only, backend on separate service
+  - **Railway/Render**: Full-stack deployment with PostgreSQL
+  - **AWS/Azure/GCP**: VM with Docker or managed database services
+- **VPS**: Ubuntu/Debian with Nginx, PostgreSQL, Redis, and PM2/systemd
+- **Docker Compose**: Production-ready composition with all services
 
 ## 📖 Learning Resources
 

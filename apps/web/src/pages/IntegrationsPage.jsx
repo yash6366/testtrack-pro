@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../hooks/useProject';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingState from '@/components/common/LoadingState';
+import { FolderKanban } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || 'YOUR_GITHUB_CLIENT_ID';
 
@@ -22,7 +27,15 @@ export default function IntegrationsPage() {
   const [syncProgress, setSyncProgress] = useState(0);
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
-  const projectId = searchParams.get('projectId') || localStorage.getItem('selectedProjectId');
+  const { selectedProjectId, setActiveProjectId, loading: projectLoading } = useProject();
+  const searchProjectId = searchParams.get('projectId');
+  const projectId = searchProjectId || selectedProjectId;
+
+  useEffect(() => {
+    if (searchProjectId) {
+      setActiveProjectId(searchProjectId);
+    }
+  }, [searchProjectId, setActiveProjectId]);
 
   useEffect(() => {
     loadIntegration();
@@ -40,7 +53,6 @@ export default function IntegrationsPage() {
 
   const loadIntegration = async () => {
     if (!projectId) {
-      setError('No project selected');
       setLoading(false);
       return;
     }
@@ -215,17 +227,40 @@ export default function IntegrationsPage() {
     }
   };
 
-  if (loading) {
+  if (projectLoading) {
+    return <LoadingState className="min-h-screen" message="Loading projects..." />;
+  }
+
+  if (!projectId) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin w-12 h-12 border-4 border-[var(--border)] border-t-blue-500 rounded-full" />
+      <div className="min-h-screen bg-[var(--bg)] p-6">
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+        <div className="max-w-3xl mx-auto">
+          <EmptyState
+            icon={FolderKanban}
+            title="No project selected"
+            description="Select or create a project to manage integrations."
+            actionLabel="Select Project"
+            onAction={() => navigate('/projects')}
+          />
+        </div>
       </div>
     );
   }
 
+  if (loading) {
+    return <LoadingState className="min-h-screen" message="Loading integrations..." />;
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] p-6">
+      <div className="mb-4">
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
+      </div>
       <div className="max-w-4xl mx-auto">
+
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-[var(--foreground)]">Integrations</h1>

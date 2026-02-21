@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks';
+import BackButton from '@/components/ui/BackButton';
 
 export default function OAuthCallback() {
   const navigate = useNavigate();
@@ -90,12 +91,7 @@ export default function OAuthCallback() {
         <div className="text-center">
           <h2 className="text-2xl font-semibold text-[var(--danger)] mb-4">Authentication Error</h2>
           <p className="text-[var(--muted)] mb-6">{error}</p>
-          <button
-            onClick={() => navigate('/login')}
-            className="tt-btn tt-btn-primary"
-          >
-            Back to Login
-          </button>
+          <BackButton label="Back to Login" fallback="/login" className="tt-btn tt-btn-primary" />
         </div>
       </div>
     </div>

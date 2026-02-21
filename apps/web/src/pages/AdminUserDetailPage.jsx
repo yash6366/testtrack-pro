@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import BackButton from '@/components/ui/BackButton';
 
 export default function AdminUserDetailPage() {
   const { userId } = useParams();
@@ -117,12 +118,7 @@ export default function AdminUserDetailPage() {
         headerTitle="User Details"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-gray-600 hover:text-gray-900 mb-4"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
           <div className="bg-red-50 dark:bg-red-900 border border-red-200 text-red-800 dark:text-red-200 px-4 py-3 rounded">
             {error}
           </div>
@@ -139,12 +135,7 @@ export default function AdminUserDetailPage() {
         headerTitle="User Details"
       >
         <div className="p-6">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-gray-600 hover:text-gray-900 mb-4"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
           <div className="bg-gray-100 text-gray-800 px-4 py-3 rounded">
             User not found
           </div>
@@ -161,13 +152,7 @@ export default function AdminUserDetailPage() {
       headerSubtitle={user.email}
     >
       <div className="p-6 space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-        >
-          ← Back to Dashboard
-        </button>
+        <BackButton label="Back to Dashboard" fallback="/dashboard" />
 
         {/* Messages */}
         {error && (

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks';
 import { apiClient } from '@/lib/apiClient';
 import { logError } from '@/lib/errorLogger';
+import BackButton from '@/components/ui/BackButton';
 
 /**
  * TestRunCreation Page
@@ -157,12 +158,7 @@ export default function TestRunCreation() {
       {/* Header */}
       <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
         <div className="max-w-4xl mx-auto px-6 py-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 flex items-center gap-1"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Reports" fallback="/reports" />
           <h1 className="text-3xl font-bold mb-2">Create Test Run</h1>
           <p className="text-[var(--muted)]">
             Select test cases and configure your test run

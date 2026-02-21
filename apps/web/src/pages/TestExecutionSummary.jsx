@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks';
 import { apiClient } from '@/lib/apiClient';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 /**
  * TestExecutionSummary Page
@@ -131,20 +133,10 @@ export default function TestExecutionSummary() {
     return (
       <div className="min-h-screen bg-[var(--bg)]">
         <div className="max-w-4xl mx-auto px-6 py-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 flex items-center gap-1"
-          >
-            ← Back
-          </button>
+          <BackButton label="Back to Reports" fallback="/reports" />
           <div className="tt-card p-6 text-center">
             <p className="text-rose-600 mb-4">{error}</p>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="tt-btn tt-btn-primary"
-            >
-              Go to Dashboard
-            </button>
+            <BackButton label="Back to Dashboard" fallback="/dashboard" className="justify-center" />
           </div>
         </div>
       </div>
@@ -167,12 +159,19 @@ export default function TestExecutionSummary() {
       {/* Header */}
       <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
         <div className="max-w-4xl mx-auto px-6 py-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 flex items-center gap-1"
-          >
-            ← Back
-          </button>
+          <div className="flex flex-col gap-3 mb-4">
+            <BackButton label="Back to Reports" fallback="/reports" />
+            <Breadcrumb
+              crumbs={[
+                { label: 'Dashboard', path: '/dashboard' },
+                { label: 'Reports', path: '/reports' },
+                testRun?.id
+                  ? { label: testRun?.name || `Test Run #${testRun.id}`, path: `/test-run/${testRun.id}` }
+                  : { label: 'Test Run', path: null },
+                { label: 'Execution Summary', path: null },
+              ]}
+            />
+          </div>
           <div className="flex items-center gap-4 mb-4">
             <div
               className={`w-16 h-16 rounded-lg flex items-center justify-center text-3xl font-bold ${getStatusColor(execution.status)}`}
@@ -366,12 +365,7 @@ export default function TestExecutionSummary() {
               {reexecuteLoading ? 'Starting...' : 'Re-execute Test'}
             </button>
           )}
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="tt-btn tt-btn-primary"
-          >
-            Back to Dashboard
-          </button>
+          <BackButton label="Back to Dashboard" fallback="/dashboard" className="tt-btn tt-btn-primary" />
           {execution.testCaseId && (
             <button
               onClick={() => navigate(`/test-cases/${execution.testCaseId}`)}

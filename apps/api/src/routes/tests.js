@@ -1,5 +1,6 @@
 import { getPrismaClient } from '../lib/prisma.js';
 import { createAuthGuards } from '../lib/rbac.js';
+import { requirePermission } from '../lib/policy.js';
 import { requireEditPermission, requireDeletePermission, validateBulkPermissions } from '../lib/testCasePermissions.js';
 import {
   createTestCase,
@@ -34,7 +35,12 @@ const createTestCaseSchema = {
   tags: ['test-cases'],
   summary: 'Create a new test case',
   description: 'Create a new test case in a project',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['name', 'type', 'priority'],
@@ -60,7 +66,8 @@ const createTestCaseSchema = {
   response: {
     201: {
       description: 'Test case created successfully',
-      ...testCaseObject,
+      type: 'object',
+      properties: testCaseObject.properties,
     },
     ...errorResponse,
   },
@@ -71,7 +78,12 @@ const getTestCasesSchema = {
   tags: ['test-cases'],
   summary: 'Get test cases for a project',
   description: 'Retrieve all test cases in a project with optional filtering and pagination',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   querystring: {
     type: 'object',
     properties: {
@@ -88,7 +100,10 @@ const getTestCasesSchema = {
       description: 'Test cases retrieved successfully',
       type: 'object',
       properties: {
-        data: { type: 'array', items: testCaseObject },
+        data: {
+          type: 'array',
+          items: testCaseObject,
+        },
         total: { type: 'number' },
         skip: { type: 'number' },
         take: { type: 'number' },
@@ -104,8 +119,11 @@ const getTestCaseSchema = {
   summary: 'Get a specific test case',
   description: 'Retrieve detailed information about a single test case',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testCaseId: { type: 'string', description: 'Test case ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testCaseId: { type: 'string', description: 'Test case ID' },
+    },
   },
   response: {
     200: {
@@ -122,8 +140,11 @@ const updateTestCaseSchema = {
   summary: 'Update a test case',
   description: 'Update an existing test case',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testCaseId: { type: 'string', description: 'Test case ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testCaseId: { type: 'string', description: 'Test case ID' },
+    },
   },
   body: {
     type: 'object',
@@ -153,8 +174,11 @@ const deleteTestCaseSchema = {
   summary: 'Delete a test case',
   description: 'Soft-delete a test case (can be restored)',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testCaseId: { type: 'string', description: 'Test case ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testCaseId: { type: 'string', description: 'Test case ID' },
+    },
   },
   response: {
     200: {
@@ -175,8 +199,11 @@ const restoreTestCaseSchema = {
   summary: 'Restore a deleted test case',
   description: 'Restore a previously deleted test case',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testCaseId: { type: 'string', description: 'Test case ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testCaseId: { type: 'string', description: 'Test case ID' },
+    },
   },
   response: {
     200: {
@@ -197,8 +224,11 @@ const cloneTestCaseSchema = {
   summary: 'Clone a test case',
   description: 'Create a duplicate of an existing test case',
   params: {
-    projectId: { type: 'string', description: 'Project ID' },
-    testCaseId: { type: 'string', description: 'Test case ID' },
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+      testCaseId: { type: 'string', description: 'Test case ID' },
+    },
   },
   body: {
     type: 'object',
@@ -221,7 +251,12 @@ const exportTestCasesSchema = {
   tags: ['test-cases'],
   summary: 'Export test cases to CSV',
   description: 'Export all test cases in a project to CSV format',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   response: {
     200: {
       description: 'CSV file of test cases',
@@ -237,7 +272,12 @@ const importTestCasesSchema = {
   tags: ['test-cases'],
   summary: 'Import test cases from CSV',
   description: 'Bulk import test cases from a CSV file',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['csvContent'],
@@ -263,7 +303,12 @@ const bulkUpdateSchema = {
   tags: ['test-cases'],
   summary: 'Bulk update test cases',
   description: 'Update multiple test cases in one operation',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['testCaseIds'],
@@ -290,7 +335,12 @@ const bulkDeleteSchema = {
   tags: ['test-cases'],
   summary: 'Bulk delete test cases',
   description: 'Delete multiple test cases at once',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['testCaseIds'],
@@ -316,7 +366,12 @@ const bulkRestoreSchema = {
   tags: ['test-cases'],
   summary: 'Bulk restore test cases',
   description: 'Restore multiple deleted test cases at once',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['testCaseIds'],
@@ -343,7 +398,12 @@ const getTemplatesSchema = {
   tags: ['test-cases'],
   summary: 'Get test case templates',
   description: 'Retrieve all test case templates for a project',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   querystring: {
     type: 'object',
     properties: {
@@ -366,7 +426,12 @@ const getTemplateSchema = {
   tags: ['test-cases'],
   summary: 'Get a specific template',
   description: 'Retrieve details of a specific template',
-  params: { templateId: { type: 'string', description: 'Template ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      templateId: { type: 'string', description: 'Template ID' },
+    },
+  },
   response: {
     200: {
       description: 'Template retrieved successfully',
@@ -381,7 +446,12 @@ const createTemplateSchema = {
   tags: ['test-cases'],
   summary: 'Create a test case template',
   description: 'Create a new test case template',
-  params: { projectId: { type: 'string', description: 'Project ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'Project ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['name'],
@@ -406,7 +476,12 @@ const updateTemplateSchema = {
   tags: ['test-cases'],
   summary: 'Update a test case template',
   description: 'Update an existing template',
-  params: { templateId: { type: 'string', description: 'Template ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      templateId: { type: 'string', description: 'Template ID' },
+    },
+  },
   body: {
     type: 'object',
     properties: {
@@ -430,7 +505,12 @@ const deleteTemplateSchema = {
   tags: ['test-cases'],
   summary: 'Delete a test case template',
   description: 'Delete a template',
-  params: { templateId: { type: 'string', description: 'Template ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      templateId: { type: 'string', description: 'Template ID' },
+    },
+  },
   response: {
     200: {
       description: 'Template deleted successfully',
@@ -449,7 +529,12 @@ const createTestCaseFromTemplateSchema = {
   tags: ['test-cases'],
   summary: 'Create test case from template',
   description: 'Create a new test case using a template',
-  params: { templateId: { type: 'string', description: 'Template ID' } },
+  params: {
+    type: 'object',
+    properties: {
+      templateId: { type: 'string', description: 'Template ID' },
+    },
+  },
   body: {
     type: 'object',
     required: ['projectId', 'testCaseName'],
@@ -485,7 +570,7 @@ export async function testRoutes(fastify) {
   // Create test case
   fastify.post(
     '/api/projects/:projectId/test-cases',
-    { schema: createTestCaseSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: createTestCaseSchema, preHandler: [requirePermission('testCase:create')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -498,12 +583,13 @@ export async function testRoutes(fastify) {
           },
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
 
         reply.code(201).send(testCase);
       } catch (error) {
         console.error('Error creating test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -540,10 +626,10 @@ export async function testRoutes(fastify) {
     { schema: getTestCaseSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
-        const { testCaseId } = request.params;
+        const { testCaseId, projectId } = request.params;
 
-        const testCase = await prisma.testCase.findUnique({
-          where: { id: Number(testCaseId) },
+        const testCase = await prisma.testCase.findFirst({
+          where: { id: Number(testCaseId), projectId: Number(projectId) },
           include: {
             steps: {
               orderBy: { stepNumber: 'asc' },
@@ -579,7 +665,7 @@ export async function testRoutes(fastify) {
   // Update test case
   fastify.patch(
     '/api/projects/:projectId/test-cases/:testCaseId',
-    { schema: updateTestCaseSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN']), requireEditPermission] },
+    { schema: updateTestCaseSchema, preHandler: [requirePermission('testCase:edit')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
@@ -590,11 +676,12 @@ export async function testRoutes(fastify) {
           request.body,
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.send(updated);
       } catch (error) {
         console.error('Error updating test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -602,7 +689,7 @@ export async function testRoutes(fastify) {
   // Soft-delete test case
   fastify.delete(
     '/api/projects/:projectId/test-cases/:testCaseId',
-    { schema: deleteTestCaseSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN']), requireDeletePermission] },
+    { schema: deleteTestCaseSchema, preHandler: [requirePermission('testCase:delete')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
@@ -612,11 +699,12 @@ export async function testRoutes(fastify) {
           Number(testCaseId),
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.send({ success: true, testCase: deleted });
       } catch (error) {
         console.error('Error deleting test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -624,7 +712,7 @@ export async function testRoutes(fastify) {
   // Restore deleted test case
   fastify.post(
     '/api/projects/:projectId/test-cases/:testCaseId/restore',
-    { schema: restoreTestCaseSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: restoreTestCaseSchema, preHandler: [requirePermission('testCase:create')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
@@ -634,11 +722,12 @@ export async function testRoutes(fastify) {
           Number(testCaseId),
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.send({ success: true, testCase: restored });
       } catch (error) {
         console.error('Error restoring test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -646,7 +735,7 @@ export async function testRoutes(fastify) {
   // Clone test case
   fastify.post(
     '/api/projects/:projectId/test-cases/:testCaseId/clone',
-    { schema: cloneTestCaseSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: cloneTestCaseSchema, preHandler: [requirePermission('testCase:clone')] },
     async (request, reply) => {
       try {
         const { testCaseId } = request.params;
@@ -662,11 +751,12 @@ export async function testRoutes(fastify) {
           newName,
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.code(201).send(cloned);
       } catch (error) {
         console.error('Error cloning test case:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -681,10 +771,13 @@ export async function testRoutes(fastify) {
     { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
-        const { testCaseId } = request.params;
+        const { testCaseId, projectId } = request.params;
 
         const versions = await prisma.testCaseVersion.findMany({
-          where: { testCaseId: Number(testCaseId) },
+          where: {
+            testCaseId: Number(testCaseId),
+            testCase: { projectId: Number(projectId) },
+          },
           include: {
             user: { select: { id: true, name: true, email: true } },
           },
@@ -705,7 +798,7 @@ export async function testRoutes(fastify) {
     { preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
     async (request, reply) => {
       try {
-        const { testCaseId } = request.params;
+        const { testCaseId, projectId } = request.params;
         const { v1, v2 } = request.query;
 
         if (!v1 || !v2) {
@@ -717,6 +810,7 @@ export async function testRoutes(fastify) {
             where: {
               id: Number(v1),
               testCaseId: Number(testCaseId),
+              testCase: { projectId: Number(projectId) },
             },
             include: {
               user: { select: { id: true, name: true, email: true } },
@@ -726,6 +820,7 @@ export async function testRoutes(fastify) {
             where: {
               id: Number(v2),
               testCaseId: Number(testCaseId),
+              testCase: { projectId: Number(projectId) },
             },
             include: {
               user: { select: { id: true, name: true, email: true } },
@@ -792,7 +887,7 @@ export async function testRoutes(fastify) {
   // Import test cases from CSV
   fastify.post(
     '/api/projects/:projectId/test-cases/import/csv',
-    { schema: importTestCasesSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: importTestCasesSchema, preHandler: [requirePermission('testCase:import')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -808,12 +903,13 @@ export async function testRoutes(fastify) {
           csvContent,
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
 
         reply.send(results);
       } catch (error) {
         console.error('Error importing test cases:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -825,21 +921,23 @@ export async function testRoutes(fastify) {
   // Bulk update test cases
   fastify.post(
     '/api/projects/:projectId/test-cases/bulk/update',
-    { schema: bulkUpdateSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: bulkUpdateSchema, preHandler: [requirePermission('testCase:edit')] },
     async (request, reply) => {
       try {
         const userId = request.user.id;
         const userRole = request.user.role;
+        const { projectId } = request.params;
         const results = await bulkUpdateTestCases(
-          request.body,
+          { ...request.body, projectId: Number(projectId) },
           userId,
           userRole,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.send(results);
       } catch (error) {
         console.error('Error bulk updating test cases:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -847,12 +945,13 @@ export async function testRoutes(fastify) {
   // Bulk delete test cases
   fastify.post(
     '/api/projects/:projectId/test-cases/bulk/delete',
-    { schema: bulkDeleteSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: bulkDeleteSchema, preHandler: [requirePermission('testCase:delete')] },
     async (request, reply) => {
       try {
         const { testCaseIds } = request.body;
         const userId = request.user.id;
         const userRole = request.user.role;
+        const { projectId } = request.params;
 
         if (!testCaseIds || testCaseIds.length === 0) {
           return reply.code(400).send({ error: 'No test cases selected' });
@@ -863,11 +962,13 @@ export async function testRoutes(fastify) {
           userId,
           userRole,
           getClientContext(request),
+          Number(projectId),
+          request.permissionContext,
         );
         reply.send(results);
       } catch (error) {
         console.error('Error bulk deleting test cases:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -880,6 +981,7 @@ export async function testRoutes(fastify) {
       try {
         const { testCaseIds } = request.body;
         const userId = request.user.id;
+        const { projectId } = request.params;
 
         if (!testCaseIds || testCaseIds.length === 0) {
           return reply.code(400).send({ error: 'No test cases selected' });
@@ -889,11 +991,12 @@ export async function testRoutes(fastify) {
           testCaseIds,
           userId,
           getClientContext(request),
+          Number(projectId),
         );
         reply.send(results);
       } catch (error) {
         console.error('Error bulk restoring test cases:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -967,7 +1070,7 @@ export async function testRoutes(fastify) {
   // Create template
   fastify.post(
     '/api/projects/:projectId/templates',
-    { schema: createTemplateSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: createTemplateSchema, preHandler: [requirePermission('testPlan:create')] },
     async (request, reply) => {
       try {
         const { projectId } = request.params;
@@ -980,12 +1083,13 @@ export async function testRoutes(fastify) {
           },
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
 
         reply.code(201).send(template);
       } catch (error) {
         console.error('Error creating template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -993,7 +1097,7 @@ export async function testRoutes(fastify) {
   // Update template
   fastify.patch(
     '/api/templates/:templateId',
-    { schema: updateTemplateSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: updateTemplateSchema, preHandler: [requirePermission('testPlan:edit')] },
     async (request, reply) => {
       try {
         const { templateId } = request.params;
@@ -1004,11 +1108,12 @@ export async function testRoutes(fastify) {
           request.body,
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.send(updated);
       } catch (error) {
         console.error('Error updating template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -1016,7 +1121,7 @@ export async function testRoutes(fastify) {
   // Delete template
   fastify.delete(
     '/api/templates/:templateId',
-    { schema: deleteTemplateSchema, preHandler: [requireAuth, requireRoles(['TESTER', 'DEVELOPER', 'ADMIN'])] },
+    { schema: deleteTemplateSchema, preHandler: [requirePermission('testPlan:delete')] },
     async (request, reply) => {
       try {
         const { templateId } = request.params;
@@ -1026,11 +1131,12 @@ export async function testRoutes(fastify) {
           Number(templateId),
           userId,
           getClientContext(request),
+          request.permissionContext,
         );
         reply.send({ success: true, message: 'Template deleted successfully' });
       } catch (error) {
         console.error('Error deleting template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );
@@ -1060,7 +1166,7 @@ export async function testRoutes(fastify) {
         reply.code(201).send(testCase);
       } catch (error) {
         console.error('Error creating test case from template:', error);
-        reply.code(400).send({ error: error.message });
+        reply.code(500).send({ error: error.message });
       }
     },
   );

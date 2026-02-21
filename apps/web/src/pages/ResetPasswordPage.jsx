@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import BackButton from '@/components/ui/BackButton';
 
 const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
@@ -201,13 +202,7 @@ const ResetPasswordPage = () => {
           </button>
 
           <div className="text-center">
-            <button
-              type="button"
-              onClick={() => navigate('/login')}
-              className="text-sm text-blue-600 hover:text-blue-700"
-            >
-              Back to Login
-            </button>
+            <BackButton label="Back to Login" fallback="/login" />
           </div>
         </form>
       </div>

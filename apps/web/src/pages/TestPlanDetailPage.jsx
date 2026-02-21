@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import BackButton from '@/components/ui/BackButton';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 
 export default function TestPlanDetailPage() {
   const { planId } = useParams();
@@ -37,12 +39,10 @@ export default function TestPlanDetailPage() {
   const loadTestPlanDetails = async () => {
     try {
       setLoading(true);
-      setError('');
-      const response = await apiClient.get(
-        `/api/projects/${projectId}/test-plans/${planId}`
-      );
-      setTestPlan(response.data || response);
-      setFormData({
+          <BackButton
+            label="Back to Test Plans"
+            fallback={`/test-plans?projectId=${projectId}`}
+          />
         name: response.name || response.data?.name || '',
         description: response.description || response.data?.description || '',
       });
@@ -196,12 +196,10 @@ export default function TestPlanDetailPage() {
     return (
       <DashboardLayout user={user} dashboardLabel="Test Plans" headerTitle="Test Plan Details">
         <div className="p-6">
-          <button
-            onClick={() => navigate('/test-plans?projectId=' + projectId)}
-            className="text-gray-600 hover:text-gray-900 mb-4 text-sm"
-          >
-            ← Back to Test Plans
-          </button>
+          <BackButton
+            label="Back to Test Plans"
+            fallback={`/test-plans?projectId=${projectId}`}
+          />
           <div className="bg-red-50 dark:bg-red-900 border border-red-200 text-red-800 dark:text-red-200 px-4 py-3 rounded">
             {error}
           </div>
@@ -218,13 +216,19 @@ export default function TestPlanDetailPage() {
       headerSubtitle={testPlan?.description}
     >
       <div className="p-6 space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/test-plans?projectId=' + projectId)}
-          className="text-gray-600 hover:text-gray-900 text-sm"
-        >
-          ← Back to Test Plans
-        </button>
+        <div className="flex flex-col gap-3">
+          <BackButton
+            label="Back to Test Plans"
+            fallback={`/test-plans?projectId=${projectId}`}
+          />
+          <Breadcrumb
+            crumbs={[
+              { label: 'Dashboard', path: '/dashboard' },
+              { label: 'Test Plans', path: `/test-plans?projectId=${projectId}` },
+              { label: testPlan?.name || 'Test Plan', path: null },
+            ]}
+          />
+        </div>
 
         {/* Messages */}
         {error && (

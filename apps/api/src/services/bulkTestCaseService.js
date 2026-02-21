@@ -6,6 +6,7 @@
 import { getPrismaClient } from '../lib/prisma.js';
 import { logAuditAction } from './auditService.js';
 import { validateBulkPermissions } from '../lib/testCasePermissions.js';
+import { assertPermissionContext } from '../lib/policy.js';
 import { exportTestCasesToCSV } from './testCaseService.js';
 
 const prisma = getPrismaClient();
@@ -15,10 +16,17 @@ const prisma = getPrismaClient();
  * @param {Object} data - Bulk update data
  * @param {number} userId - User performing the operation
  * @param {string} userRole - User's role
+ * @param {Object} auditContext - Audit context
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Update results
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function bulkUpdateTestCases(data, userId, userRole, auditContext = {}) {
-  const { testCaseIds = [], updates = {} } = data;
+export async function bulkUpdateTestCases(data, userId, userRole, auditContext = {}, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+
+  const { testCaseIds = [], updates = {}, projectId = null } = data;
 
   if (!testCaseIds || testCaseIds.length === 0) {
     throw new Error('No test cases selected for bulk update');
@@ -26,6 +34,11 @@ export async function bulkUpdateTestCases(data, userId, userRole, auditContext =
 
   if (Object.keys(updates).length === 0) {
     throw new Error('No updates specified');
+  }
+
+  // Assert permission context for bulk edit
+  if (projectId) {
+    assertPermissionContext(permissionContext, 'testCase:edit', { projectId: Number(projectId) });
   }
 
   const results = {
@@ -36,7 +49,7 @@ export async function bulkUpdateTestCases(data, userId, userRole, auditContext =
   };
 
   // Validate permissions
-  const permissions = await validateBulkPermissions(testCaseIds, userId, userRole, 'edit');
+  const permissions = await validateBulkPermissions(testCaseIds, userId, userRole, 'edit', projectId);
   
   if (permissions.denied.length > 0) {
     results.denied = permissions.denied;
@@ -119,9 +132,18 @@ export async function bulkUpdateTestCases(data, userId, userRole, auditContext =
  * @param {string} userRole - User's role
  * @returns {Promise<Object>} Delete results
  */
-export async function bulkDeleteTestCases(testCaseIds, userId, userRole, auditContext = {}) {
+export async function bulkDeleteTestCases(testCaseIds, userId, userRole, auditContext = {}, projectId = null, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+
   if (!testCaseIds || testCaseIds.length === 0) {
     throw new Error('No test cases selected for bulk delete');
+  }
+
+  // Assert permission context for bulk delete
+  if (projectId) {
+    assertPermissionContext(permissionContext, 'testCase:delete', { projectId: Number(projectId) });
   }
 
   const results = {
@@ -132,7 +154,7 @@ export async function bulkDeleteTestCases(testCaseIds, userId, userRole, auditCo
   };
 
   // Validate permissions
-  const permissions = await validateBulkPermissions(testCaseIds, userId, userRole, 'delete');
+  const permissions = await validateBulkPermissions(testCaseIds, userId, userRole, 'delete', projectId);
   
   if (permissions.denied.length > 0) {
     results.denied = permissions.denied;
@@ -302,7 +324,7 @@ export async function bulkExportTestCases(data) {
  * @param {number} userId - User performing the operation
  * @returns {Promise<Object>} Restore results
  */
-export async function bulkRestoreTestCases(testCaseIds, userId, auditContext = {}) {
+export async function bulkRestoreTestCases(testCaseIds, userId, auditContext = {}, projectId = null) {
   if (!testCaseIds || testCaseIds.length === 0) {
     throw new Error('No test cases selected for bulk restore');
   }
@@ -318,6 +340,7 @@ export async function bulkRestoreTestCases(testCaseIds, userId, auditContext = {
     where: {
       id: { in: testCaseIds.map(id => Number(id)) },
       isDeleted: true,
+      ...(projectId !== null ? { projectId: Number(projectId) } : {}),
     },
     select: { id: true, name: true, projectId: true },
   });

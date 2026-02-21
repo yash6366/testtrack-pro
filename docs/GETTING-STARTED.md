@@ -70,25 +70,51 @@ TestTrack Pro is a comprehensive software testing management platform that helps
 
 🎉 **Congratulations!** You've completed your first test execution!
 
+## New in v0.6.2: Bug Fix Documentation
+
+### Documenting Bug Fixes (For Developers)
+
+1. Go to **Bugs** → select an assigned bug
+2. Click **Document Fix** tab
+3. Fill in fix details:
+   - **Root Cause**: Choose from Design Defect, Implementation Error, or Config Issue
+   - **Fix Description**: How you resolved the issue
+   - **Commit Link**: Your git commit URL
+   - **Fix Hours**: Time spent fixing
+4. Click **Save**
+5. Tester verifies the fix matches the bug report
+
+### New Analytics Dashboard (v0.6.2)
+
+Access advanced metrics from the **Analytics** menu:
+- **Flaky Tests**: Identify tests with inconsistent results
+- **Developer Metrics**: Track fixes per developer and fix patterns
+- **Bug Velocity**: Monitor how quickly bugs are resolved
+- **Execution Trends**: 8-week performance analysis
+
 ## Understanding the Dashboard
 
 When you log in, you'll see the **Dashboard** with:
 
-### Key Metrics
+### Key Metrics (Enhanced in v0.6.2)
 - **Total Test Cases**: Number of test cases in your projects
 - **Active Executions**: Currently running tests
 - **Open Bugs**: Bugs awaiting resolution
 - **Pass Rate**: Percentage of tests passing
+- **Flaky Test Rate**: Tests with inconsistent pass/fail results *(NEW)*
 
 ### Recent Activity
 - Latest test executions
 - Recent bug reports
 - Team activity feed
+- Recent bug fixes documented *(NEW)*
 
 ### Charts & Analytics
-- **Execution Trends**: Pass/Fail trends over time
+- **Execution Trends**: Pass/Fail trends over time (8-week view) *(Enhanced)*
 - **Bug Distribution**: Bugs by severity/status
 - **Test Coverage**: Coverage across modules
+- **Developer Performance**: Developer analytics dashboard *(NEW)*
+- **Flaky Tests**: Tests requiring maintenance *(NEW)*
 
 ## User Roles & Permissions
 
@@ -107,12 +133,14 @@ TestTrack Pro has four user roles:
 - ✅ Add comments
 - ❌ Cannot manage users or projects
 
-### 👨‍💻 Developer (Bug Management)
+### 👨‍💻 Developer (Bug Management & Fix Documentation)
 - ✅ View test cases and executions
-- ✅ Manage assigned bugs
-- ✅ Update bug status
-- ✅ Link bugs to code
-- ❌ Cannot create test cases
+- ✅ Manage assigned bugs (update status)
+- ✅ Document bug fixes with root cause analysis **(NEW in v0.6.2)**
+- ✅ View developer analytics dashboard **(NEW in v0.6.2)**
+- ✅ Link bugs to git commits and code reviews
+- ❌ Cannot create test cases or execute tests (security constraint)
+- ❌ Cannot verify test results
 
 ### 👑 Admin (Full Access)
 - ✅ All permissions
@@ -157,6 +185,39 @@ When a test fails:
 4. Assign to a developer (optional)
 5. Click **Create Bug**
 
+### Documenting a Bug Fix (Developer Workflow) — NEW in v0.6.2
+
+Developers can now document how they fixed bugs with detailed root cause analysis and git traceability:
+
+1. Open an assigned bug
+2. Click **Fix in Progress** to update bug status
+3. Make code changes and commit to git
+4. Click **Document Fix** button
+5. Fill in fix details:
+   - **Fix Strategy**: How you fixed the bug
+   - **Root Cause**: Why the bug occurred
+   - **Root Cause Category**: Type of issue (Implementation Error, Design Defect, etc.)
+   - **Git Information**: Commit hash, branch, PR link
+   - **Version Info**: Target version and actual fix hours
+6. Click **Save Fix Documentation**
+7. Update bug status to **Fixed**
+
+**Note**: Only testers and admins can verify that the fix works. Once verified, the bug is closed.
+
+### Viewing Developer Analytics — NEW in v0.6.2
+
+Developers have access to a personal analytics dashboard:
+
+1. Click **Analytics** in the sidebar
+2. Select **Developer Dashboard**
+3. View your metrics:
+   - **Bugs Fixed**: Number of bugs you've fixed (8-week trend)
+   - **Average Fix Time**: How long your fixes typically take
+   - **Root Cause Distribution**: Types of issues you fix most
+   - **Fix Velocity**: Your bug fixes per week
+
+This helps track productivity and identify patterns in the types of bugs you work on.
+
 ### Searching & Filtering
 
 Find what you need quickly:
@@ -187,8 +248,8 @@ Attach files to executions or bugs:
 - **📋 Test Cases**: Manage test cases
 - **🧪 Test Executions**: Execute and view test runs
 - **📦 Test Suites**: Organize test cases
-- **🐛 Bugs**: Bug tracking
-- **📊 Analytics**: Reports and insights
+- **🐛 Bugs**: Bug tracking and fix documentation **(v0.6.2: Developers can document fixes)**
+- **📊 Analytics**: Reports and insights **(v0.6.2: New flaky tests, execution trends, developer analytics)**
 - **💬 Chat**: Team communication
 - **🔔 Notifications**: Activity updates
 - **⚙️ Settings**: Account settings
@@ -230,11 +291,14 @@ Connect related test cases, bugs, and executions for better traceability
 ### 4. Regular Reviews
 Schedule regular test case reviews to keep them up-to-date
 
-### 5. Leverage Analytics
+### 5. Leverage Analytics — Enhanced in v0.6.2
 Review analytics weekly to identify:
-- Flaky tests (inconsistent results)
-- High-risk areas (frequent failures)
-- Test coverage gaps
+- **Flaky tests**: Tests with inconsistent results (pass sometimes, fail others)
+- **High-risk areas**: Modules or features with frequent failures
+- **Test coverage gaps**: Areas without adequate test coverage
+- **Execution trends**: 8-week view of pass rates and execution times
+- **Bug velocity**: Rate of bug fixes and issue resolution
+- **Developer performance**: For teams, track developer fix metrics
 
 ## Integration Features
 

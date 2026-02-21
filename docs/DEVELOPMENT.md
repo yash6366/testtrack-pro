@@ -63,45 +63,58 @@ GRANT ALL PRIVILEGES ON DATABASE testtrack_dev TO testtrack;
 Create `apps/api/.env`:
 
 ```env
-# Database
+# ===== DATABASE =====
 DATABASE_URL="postgresql://postgres:password@localhost:5432/testtrack_dev"
 
-# JWT
+# ===== AUTHENTICATION =====
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
 JWT_EXPIRES_IN="1h"
 REFRESH_TOKEN_SECRET="your-refresh-token-secret"
 REFRESH_TOKEN_EXPIRES_IN="7d"
 
-# Redis
+# ===== CACHE & SESSIONS =====
 REDIS_URL="redis://localhost:6379"
-# OR for Upstash:
+# OR for Upstash (managed Redis):
 # UPSTASH_REDIS_REST_URL="https://your-redis.upstash.io"
 # UPSTASH_REDIS_REST_TOKEN="your-token"
 
-# Email (for testing, use Ethereal)
-SMTP_HOST="smtp.ethereal.email"
-SMTP_PORT=587
-SMTP_USER="your-user@ethereal.email"
-SMTP_PASS="your-password"
-EMAIL_FROM="TestTrack Pro <noreply@testtrack.com>"
+# ===== EMAIL SERVICE (Resend) =====
+RESEND_API_KEY="your-resend-api-key"
+RESEND_FROM_EMAIL="noreply@yourdomain.com"
+# Get API key from https://resend.com/api-keys
+# For testing, use: onboarding@resend.dev
 
-# Cloudinary (optional for local dev)
-CLOUDINARY_CLOUD_NAME=""
-CLOUDINARY_API_KEY=""
-CLOUDINARY_API_SECRET=""
+# ===== FILE STORAGE (Cloudinary) =====
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+# Get credentials from https://cloudinary.com/console
+# Optional for local dev (use file uploads to disk)
 
-# Server
+# ===== SERVER CONFIGURATION =====
 PORT=3001
 NODE_ENV="development"
 FRONTEND_URL="http://localhost:5173"
 
-# Sentry (optional)
-SENTRY_DSN=""
+# ===== ERROR MONITORING (Sentry) =====
+SENTRY_DSN="https://your-sentry-dsn"
+# Optional: Get from https://sentry.io
+# Remove to disable error tracking
 
-# GitHub Integration (optional)
-GITHUB_CLIENT_ID=""
-GITHUB_CLIENT_SECRET=""
-GITHUB_WEBHOOK_SECRET=""
+# ===== OAUTH PROVIDERS (Optional) =====
+# Google OAuth
+GOOGLE_OAUTH_CLIENT_ID="your-google-client-id"
+GOOGLE_OAUTH_CLIENT_SECRET="your-google-secret"
+
+# GitHub OAuth
+GITHUB_OAUTH_CLIENT_ID="your-github-client-id"
+GITHUB_OAUTH_CLIENT_SECRET="your-github-secret"
+GITHUB_WEBHOOK_SECRET="your-webhook-secret"
+
+# ===== v0.6.2 FEATURES =====
+# Bug Fix Documentation: Enabled by default
+# Developer Analytics: Enabled by default
+# Flaky Test Detection: Enabled for test executions
 ```
 
 Create `apps/web/.env`:
@@ -343,6 +356,162 @@ export function CustomFieldForm({ projectId, onSuccess }) {
 }
 ```
 
+### Developer Workflow for Bug Fix Documentation (v0.6.2)
+
+Bug fix documentation is a new feature in v0.6.2 that allows developers to document how bugs were fixed, including root cause analysis, git traceability, and fix metadata.
+
+#### Understanding the Developer Role
+
+**Developers can:**
+- Update bug status to `IN_PROGRESS` and `FIXED`
+- Document fix details when a bug is fixed
+- View analytics for their assigned bugs
+- Access developer analytics dashboard
+
+**Developers cannot:**
+- Execute tests or view test results (security constraint)
+- Verify fixes (only Testers and Admins can verify)
+- Change other users' bug assignments
+- Modify test cases or test plans
+
+#### Documenting a Bug Fix
+
+When a developer fixes a bug, they document it using the fix documentation endpoint:
+
+```bash
+PATCH /api/projects/:projectId/bugs/:bugId/fix-documentation
+```
+
+**Request body:**
+```json
+{
+  "fixStrategy": "Refactored the login validator to properly escape special characters",
+  "rootCauseAnalysis": "Input validation was not escaping special characters in password fields, allowing injection attacks",
+  "rootCauseCategory": "IMPLEMENTATION_ERROR",
+  "gitCommitHash": "a3f2d9e1c5b8f7k2m9n3p5q8r2t4v6w9",
+  "gitBranch": "fix/auth-injection-vulnerability",
+  "gitCodeReviewUrl": "https://github.com/org/repo/pull/892",
+  "targetFixVersion": "0.6.3",
+  "fixedInVersion": "0.6.2",
+  "actualFixHours": 2.5
+}
+```
+
+**Response includes:**
+```json
+{
+  "id": 5,
+  "bugId": 42,
+  "fixStrategy": "Refactored the login validator...",
+  "rootCauseAnalysis": "Input validation was not escaping...",
+  "rootCauseCategory": "IMPLEMENTATION_ERROR",
+  "gitCommitHash": "a3f2d9e1c5b8f7k2m9n3p5q8r2t4v6w9",
+  "gitBranch": "fix/auth-injection-vulnerability",
+  "gitCodeReviewUrl": "https://github.com/org/repo/pull/892",
+  "targetFixVersion": "0.6.3",
+  "fixedInVersion": "0.6.2",
+  "actualFixHours": 2.5,
+  "createdAt": "2025-02-22T10:30:00Z",
+  "updatedAt": "2025-02-22T10:30:00Z"
+}
+```
+
+#### Root Cause Categories
+
+When documenting a fix, classify the root cause:
+
+- **DESIGN_DEFECT**: Issue in system design or architecture
+- **IMPLEMENTATION_ERROR**: Code implementation error or logic bug
+- **CONFIGURATION_ISSUE**: Wrong configuration or deployment settings
+- **DEPENDENCY_BUG**: Third-party library or dependency issue
+- **ENVIRONMENT_ISSUE**: Testing or production environment issue
+- **ENVIRONMENTAL_CHANGE**: External system or API change
+- **DOCUMENTATION_ERROR**: Misunderstood requirement or unclear specs
+
+#### Example: Fixing and Documenting a Bug
+
+1. **Update bug status to IN_PROGRESS**
+   ```bash
+   PATCH /api/projects/1/bugs/42
+   {
+     "status": "IN_PROGRESS",
+     "assignedTo": "developer@testtrack.com"
+   }
+   ```
+
+2. **Implement and commit fix**
+   ```bash
+   git checkout -b fix/auth-injection-vulnerability
+   # Make code changes
+   git add .
+   git commit -m "fix: Escape special characters in login validator"
+   git push origin fix/auth-injection-vulnerability
+   # Create PR #892
+   ```
+
+3. **Document the fix**
+   ```bash
+   PATCH /api/projects/1/bugs/42/fix-documentation
+   {
+     "fixStrategy": "Refactored login validator to use prepared statements and input escaping",
+     "rootCauseAnalysis": "Validator was not escaping special characters, allowing SQL injection",
+     "rootCauseCategory": "IMPLEMENTATION_ERROR",
+     "gitCommitHash": "a3f2d9e1c5b8f7k2m9n3p5q8r2t4v6w9",
+     "gitBranch": "fix/auth-injection-vulnerability",
+     "gitCodeReviewUrl": "https://github.com/org/repo/pull/892",
+     "targetFixVersion": "0.6.3",
+     "fixedInVersion": "0.6.2",
+     "actualFixHours": 2.5
+   }
+   ```
+
+4. **Update status to FIXED**
+   ```bash
+   PATCH /api/projects/1/bugs/42
+   {
+     "status": "FIXED"
+   }
+   ```
+
+5. **Tester verifies the fix**
+   - Tester runs relevant test cases
+   - If tests pass, Tester marks bug as CLOSED
+   - If tests fail, Tester reopens bug (status: REOPENED)
+
+#### Accessing Developer Analytics
+
+Developers have access to their own analytics dashboard via:
+
+```bash
+GET /api/projects/:projectId/analytics/developer?developerId=:userId
+```
+
+This returns:
+- **Bug Fixes**: Number of bugs fixed by the developer (last 8 weeks)
+- **Avg Fix Time**: Average hours to fix bugs
+- **Root Cause Distribution**: Breakdown of root cause categories for their fixes
+- **Fix Velocity**: Bugs fixed per week trend
+
+**Example response:**
+```json
+{
+  "period": "8 weeks",
+  "developerId": 3,
+  "bugsFixes": 12,
+  "avgFixHours": 3.5,
+  "rootCauseDistribution": {
+    "IMPLEMENTATION_ERROR": 6,
+    "DESIGN_DEFECT": 3,
+    "CONFIGURATION_ISSUE": 2,
+    "DEPENDENCY_BUG": 1
+  },
+  "fixVelocity": [
+    { "week": "2025-02-10", "count": 2 },
+    { "week": "2025-02-17", "count": 3 }
+  ]
+}
+```
+
 ### Testing
 
 #### Run Tests
@@ -510,6 +679,155 @@ pnpm lint
 # Format with Prettier (if configured)
 pnpm format
 ```
+
+### Analytics Features (v0.6.2)
+
+TestTrack Pro v0.6.2 introduces comprehensive analytics capabilities for monitoring test execution and bug trends.
+
+#### Accessing Analytics Endpoints
+
+All analytics endpoints require authentication and project access:
+
+```bash
+GET /api/projects/:projectId/analytics/execution-trends?weeks=8
+GET /api/projects/:projectId/analytics/flaky-tests?threshold=0.3
+GET /api/projects/:projectId/analytics/execution-speed
+GET /api/projects/:projectId/analytics/bug-trends?weeks=8
+```
+
+#### Execution Trends
+
+View test execution trends over 8 weeks:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3001/api/projects/1/analytics/execution-trends?weeks=8"
+```
+
+**Response includes:**
+```json
+{
+  "period": "8 weeks",
+  "projectId": 1,
+  "data": [
+    {
+      "week": "2025-02-10",
+      "totalExecutions": 145,
+      "passRate": 92.5,
+      "failRate": 7.5,
+      "avgDuration": 0.25
+    }
+  ]
+}
+```
+
+#### Flaky Test Detection
+
+Identify tests with inconsistent results:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3001/api/projects/1/analytics/flaky-tests?threshold=0.3"
+```
+
+**Response includes:**
+```json
+{
+  "projectId": 1,
+  "threshold": 0.3,
+  "flakyTests": [
+    {
+      "testCaseId": 42,
+      "testName": "User authentication flow",
+      "flakeRate": 0.35,
+      "passCount": 65,
+      "failCount": 35,
+      "totalRuns": 100
+    }
+  ]
+}
+```
+
+**Flake rate calculation:**
+```
+Flake Rate = (Fail Count) / (Total Runs) when Test has both passes AND fails
+```
+
+#### Execution Speed Analysis
+
+Track test execution performance with percentile metrics:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3001/api/projects/1/analytics/execution-speed"
+```
+
+**Response includes:**
+```json
+{
+  "projectId": 1,
+  "data": {
+    "p50": 0.18,
+    "p95": 0.85,
+    "p99": 1.2
+  },
+  "slowestTests": [
+    {
+      "testCaseId": 5,
+      "testName": "Full integration test",
+      "duration": 2.35
+    }
+  ]
+}
+```
+
+#### Bug Trend Analysis
+
+Track bug resolution velocity over time:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3001/api/projects/1/analytics/bug-trends?weeks=8"
+```
+
+**Response includes:**
+```json
+{
+  "period": "8 weeks",
+  "projectId": 1,
+  "data": [
+    {
+      "week": "2025-02-10",
+      "opened": 5,
+      "closed": 3,
+      "pending": 12
+    }
+  ]
+}
+```
+
+### Debugging Analytics Locally
+
+When developing analytics features:
+
+1. **Test data**: Create test executions to generate analytics data
+   ```bash
+   # Run test suite multiple times to get distribution data
+   pnpm test --repeat=10
+   ```
+
+2. **Analytics Studio** (if available):
+   ```bash
+   # Some analytics might have dedicated dashboards
+   npm run analytics:studio
+   ```
+
+3. **Database queries**: Inspect raw data
+   ```bash
+   cd apps/api
+   pnpm prisma studio
+   # Navigate to TestExecution, Bug tables to verify data
+   ```
 
 ### Common Issues & Solutions
 

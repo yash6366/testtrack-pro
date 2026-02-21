@@ -6,6 +6,7 @@
 import { getPrismaClient } from '../lib/prisma.js';
 import { parseId, validateEnum } from '../lib/validation.js';
 import { logAuditAction } from './auditService.js';
+import { assertPermissionContext } from '../lib/policy.js';
 import {
   createNotification,
   createBulkNotifications,
@@ -65,9 +66,16 @@ async function generateBugNumber(projectId) {
  * Create bug from failed test execution
  * @param {Object} data - Bug data
  * @param {number} userId - Reporter ID
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Created bug
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function createBugFromExecution(data, userId) {
+export async function createBugFromExecution(data, userId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'bug:create', { projectId: data.projectId });
+
   const {
     executionId,
     testCaseId,
@@ -135,6 +143,7 @@ export async function createBugFromExecution(data, userId) {
   // Validate project exists
   const project = await prisma.project.findUnique({
     where: { id: validatedProjectId },
+    select: { id: true, key: true },
   });
 
   if (!project) {
@@ -256,11 +265,19 @@ export async function createBugFromExecution(data, userId) {
  * @param {number} bugId - Bug ID
  * @param {Object} updates - Fields to update
  * @param {number} userId - User making update
+ * @param {number} projectId - Project ID
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated bug
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function updateBug(bugId, updates, userId) {
-  const existing = await prisma.bug.findUnique({
-    where: { id: bugId },
+export async function updateBug(bugId, updates, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'bug:edit', { projectId });
+
+  const existing = await prisma.bug.findFirst({
+    where: { id: bugId, projectId: Number(projectId) },
   });
 
   if (!existing) {
@@ -325,12 +342,21 @@ export async function updateBug(bugId, updates, userId) {
  * @param {number} bugId - Bug ID
  * @param {string} newStatus - New status
  * @param {number} userId - User changing status
- * @param {string} role - User role
+ * @param {string} role - User role (deprecated - use permissionContext)
+ * @param {Object} auditContext - Audit context
+ * @param {number} projectId - Project ID
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated bug
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function changeBugStatus(bugId, newStatus, userId, role, auditContext = {}) {
-  const bug = await prisma.bug.findUnique({
-    where: { id: bugId },
+export async function changeBugStatus(bugId, newStatus, userId, role, auditContext = {}, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'bug:status:change', { projectId });
+
+  const bug = await prisma.bug.findFirst({
+    where: { id: bugId, projectId: Number(projectId) },
   });
 
   if (!bug) {
@@ -457,11 +483,19 @@ export async function changeBugStatus(bugId, newStatus, userId, role, auditConte
  * @param {number} bugId - Bug ID
  * @param {number} assigneeId - Developer ID
  * @param {number} userId - User assigning
+ * @param {number} projectId - Project ID
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Updated bug
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function assignBug(bugId, assigneeId, userId) {
-  const bug = await prisma.bug.findUnique({
-    where: { id: bugId },
+export async function assignBug(bugId, assigneeId, userId, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'bug:assign', { projectId });
+
+  const bug = await prisma.bug.findFirst({
+    where: { id: bugId, projectId: Number(projectId) },
   });
 
   if (!bug) {
@@ -506,11 +540,33 @@ export async function assignBug(bugId, assigneeId, userId) {
  * @param {string} body - Comment text
  * @param {number} userId - Commenter ID
  * @param {boolean} isInternal - Internal comment (dev-only)
+ * @param {number} projectId - Project ID
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Created comment
+ * @throws {Error} If permissionContext is invalid or missing when projectId is set
  */
-export async function addBugComment(bugId, body, userId, isInternal = false) {
+export async function addBugComment(bugId, body, userId, isInternal = false, projectId = null, permissionContext = null) {
   if (!body || body.trim().length === 0) {
     throw new Error('Comment body is required');
+  }
+
+  if (projectId && !permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+
+  if (permissionContext) {
+    assertPermissionContext(permissionContext, 'bug:comment', { projectId });
+  }
+
+  if (projectId !== null) {
+    const bug = await prisma.bug.findFirst({
+      where: { id: bugId, projectId: Number(projectId) },
+      select: { id: true },
+    });
+
+    if (!bug) {
+      throw new Error('Bug not found');
+    }
   }
 
   const comment = await prisma.bugComment.create({
@@ -539,9 +595,9 @@ export async function addBugComment(bugId, body, userId, isInternal = false) {
  * @param {number} bugId - Bug ID
  * @returns {Promise<Object>} Bug with relations
  */
-export async function getBugDetails(bugId) {
-  const bug = await prisma.bug.findUnique({
-    where: { id: bugId },
+export async function getBugDetails(bugId, projectId) {
+  const bug = await prisma.bug.findFirst({
+    where: { id: bugId, projectId: Number(projectId) },
     include: {
       project: { select: { id: true, name: true, key: true } },
       reporter: { select: { id: true, name: true, email: true } },
@@ -644,11 +700,20 @@ export async function getProjectBugs(projectId, filters = {}) {
  * @param {number} bugId - Bug ID
  * @param {number} requesterId - Developer requesting retest
  * @param {number} testerId - Tester assigned to retest
+ * @param {string} notes - Additional notes
+ * @param {number} projectId - Project ID
+ * @param {Object} permissionContext - Permission context from authorization layer
  * @returns {Promise<Object>} Retest request
+ * @throws {Error} If permissionContext is invalid or missing
  */
-export async function requestBugRetest(bugId, requesterId, testerId, notes = null) {
-  const bug = await prisma.bug.findUnique({
-    where: { id: bugId },
+export async function requestBugRetest(bugId, requesterId, testerId, notes = null, projectId, permissionContext = null) {
+  if (!permissionContext) {
+    throw new Error('Missing permission context: direct service invocation not allowed');
+  }
+  assertPermissionContext(permissionContext, 'bug:verify', { projectId });
+
+  const bug = await prisma.bug.findFirst({
+    where: { id: bugId, projectId: Number(projectId) },
   });
 
   if (!bug) {

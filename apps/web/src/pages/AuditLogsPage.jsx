@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import DashboardLayout from '../components/DashboardLayout';
+import BackButton from '@/components/ui/BackButton';
 
 export default function AuditLogsPage() {
   const navigate = useNavigate();
@@ -179,6 +180,10 @@ export default function AuditLogsPage() {
 
   return (
     <DashboardLayout
+        <div className="mb-4">
+          <BackButton label="Back to Dashboard" fallback="/dashboard" />
+        </div>
+
       user={user}
       dashboardLabel="Audit Logs"
       headerTitle="Audit Logs"

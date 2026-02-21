@@ -16,7 +16,7 @@ const prisma = getPrismaClient();
  * @param {string} userRole - User role
  * @returns {Promise<boolean>} True if user can edit
  */
-export async function canEditTestCase(testCaseId, userId, userRole) {
+export async function canEditTestCase(testCaseId, userId, userRole, projectId = null) {
   // Admins can edit anything
   if (userRole === 'ADMIN') {
     return true;
@@ -29,6 +29,7 @@ export async function canEditTestCase(testCaseId, userId, userRole) {
       assignedToId: true,
       ownedById: true,
       isDeleted: true,
+      projectId: true,
     },
   });
 
@@ -38,6 +39,10 @@ export async function canEditTestCase(testCaseId, userId, userRole) {
 
   if (testCase.isDeleted) {
     throw new Error('Cannot edit deleted test case');
+  }
+
+  if (projectId !== null && Number(testCase.projectId) !== Number(projectId)) {
+    throw new Error('Test case not found in this project');
   }
 
   // Testers can edit if they created it, are assigned to it, or own it
@@ -57,7 +62,7 @@ export async function canEditTestCase(testCaseId, userId, userRole) {
  * @param {string} userRole - User role
  * @returns {Promise<boolean>} True if user can delete
  */
-export async function canDeleteTestCase(testCaseId, userId, userRole) {
+export async function canDeleteTestCase(testCaseId, userId, userRole, projectId = null) {
   // Admins can delete anything
   if (userRole === 'ADMIN') {
     return true;
@@ -68,6 +73,7 @@ export async function canDeleteTestCase(testCaseId, userId, userRole) {
     select: {
       createdBy: true,
       isDeleted: true,
+      projectId: true,
     },
   });
 
@@ -77,6 +83,10 @@ export async function canDeleteTestCase(testCaseId, userId, userRole) {
 
   if (testCase.isDeleted) {
     throw new Error('Test case already deleted');
+  }
+
+  if (projectId !== null && Number(testCase.projectId) !== Number(projectId)) {
+    throw new Error('Test case not found in this project');
   }
 
   // Testers can delete only if they created it
@@ -91,7 +101,7 @@ export async function canDeleteTestCase(testCaseId, userId, userRole) {
  * @param {string} userRole - User role
  * @returns {Promise<boolean>} True if user can view
  */
-export async function canViewTestCase(testCaseId, userId, userRole) {
+export async function canViewTestCase(testCaseId, userId, userRole, projectId = null) {
   const testCase = await prisma.testCase.findUnique({
     where: { id: Number(testCaseId) },
     select: {
@@ -104,9 +114,10 @@ export async function canViewTestCase(testCaseId, userId, userRole) {
     throw new Error('Test case not found');
   }
 
-  // Check if user has access to the project
-  // For now, we'll allow all authenticated users to view
-  // You can add project-specific permission checks here
+  if (projectId !== null && Number(testCase.projectId) !== Number(projectId)) {
+    throw new Error('Test case not found in this project');
+  }
+
   return true;
 }
 
@@ -118,7 +129,7 @@ export async function canViewTestCase(testCaseId, userId, userRole) {
  * @param {string} operation - Operation type ('edit' or 'delete')
  * @returns {Promise<Object>} Validation results
  */
-export async function validateBulkPermissions(testCaseIds, userId, userRole, operation = 'edit') {
+export async function validateBulkPermissions(testCaseIds, userId, userRole, operation = 'edit', projectId = null) {
   // Admins can do anything
   if (userRole === 'ADMIN') {
     return {
@@ -130,6 +141,7 @@ export async function validateBulkPermissions(testCaseIds, userId, userRole, ope
   const testCases = await prisma.testCase.findMany({
     where: {
       id: { in: testCaseIds.map(id => Number(id)) },
+      ...(projectId !== null ? { projectId: Number(projectId) } : {}),
     },
     select: {
       id: true,
@@ -184,9 +196,10 @@ export async function requireEditPermission(request, reply) {
   const { testCaseId } = request.params;
   const userId = request.user.id;
   const userRole = request.user.role;
+  const { projectId } = request.params;
 
   try {
-    const canEdit = await canEditTestCase(Number(testCaseId), userId, userRole);
+    const canEdit = await canEditTestCase(Number(testCaseId), userId, userRole, projectId);
     
     if (!canEdit) {
       return reply.code(403).send({ 
@@ -208,9 +221,10 @@ export async function requireDeletePermission(request, reply) {
   const { testCaseId } = request.params;
   const userId = request.user.id;
   const userRole = request.user.role;
+  const { projectId } = request.params;
 
   try {
-    const canDelete = await canDeleteTestCase(Number(testCaseId), userId, userRole);
+    const canDelete = await canDeleteTestCase(Number(testCaseId), userId, userRole, projectId);
     
     if (!canDelete) {
       return reply.code(403).send({ 
